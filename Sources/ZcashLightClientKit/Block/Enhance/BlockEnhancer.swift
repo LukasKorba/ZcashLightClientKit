@@ -67,6 +67,14 @@ struct BlockEnhancerImpl {
 
         let fetchedTransaction = try await blockDownloaderService.fetchTransaction(txId: transaction.rawID)
 
+        // fetchTransaction needs to change to return 3 possible states of the call, based on rawID
+        
+        // based on the result, it calls either decryptAndStoreTransaction() or NEW setTransactionStatus()
+        
+        // not recognized -> setTransactionStatus
+        // recognized -> decryptAndStoreTransaction
+        // status req -> setTransactionStatus
+
         let transactionID = fetchedTransaction.rawID.toHexStringTxId()
         let block = String(describing: transaction.minedHeight)
         logger.debug("Decrypting and storing transaction id: \(transactionID) block: \(block)")
@@ -92,6 +100,9 @@ extension BlockEnhancerImpl: BlockEnhancer {
         // fetch transactions
         do {
             let startTime = Date()
+            
+            // this will be replaced with transactionDataRequests() and needs to process enum with 3 cases 
+            // https://github.com/zcash/librustzcash/blob/main/zcash_client_backend/src/data_api.rs#L567-L616
             let transactions = try await transactionRepository.find(in: range, limit: Int.max, kind: .all)
 
             guard !transactions.isEmpty else {
@@ -113,6 +124,15 @@ extension BlockEnhancerImpl: BlockEnhancer {
                 while retry && retries < maxRetries {
                     try Task.checkCancellation()
                     do {
+//                        SpendsFromAddress {
+//                                address: TransparentAddress,
+//                                block_range_start: BlockHeight,
+//                                block_range_end: Option<BlockHeight>,
+//                            }
+                        // status address -> GetTaddressTxids -> stream<RawTransaction>
+                        // returned ids go through the decryptAndStoreTransaction
+                        
+                        // 2 cases go through this process (Enhancement(TxId), GetStatus(TxId))
                         let confirmedTx = try await enhance(transaction: transaction)
                         retry = false
                         
