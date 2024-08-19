@@ -119,7 +119,7 @@ public enum ZcashSDK {
 
     /// The number of blocks to allow before considering our data to be stale. This usually helps with what to do when
     /// returning from the background and is exposed via the Synchronizer's isStale function.
-    public static let defaultStaleTolerance: Int = 10
+    public static let defaultStaleTolerance: UInt32 = 10
 
     /// Default Name for LibRustZcash data.db
     public static let defaultDataDbName = "data.db"

@@ -8,14 +8,8 @@
 
 import Foundation
 
-public typealias BlockHeight = Int
+public typealias BlockHeight = UInt32
 public typealias CompactBlockRange = ClosedRange<BlockHeight>
-
-extension BlockHeight {
-    static func empty() -> BlockHeight {
-        BlockHeight(-1)
-    }
-}
 
 /**
 A Zcash compact block to store on cache DB
@@ -54,7 +48,7 @@ extension ZcashCompactBlock: Encodable {
 
 extension ZcashCompactBlock {
     init(compactBlock: CompactBlock) {
-        self.height = Int(compactBlock.height)
+        self.height = UInt32(compactBlock.height)
         self.data = (try? compactBlock.serializedData()) ?? Data()
         let outputs = compactBlock.outputCount
         self.meta = Meta(
