@@ -639,6 +639,7 @@ public class SDKSynchronizer: Synchronizer {
             )
 
             do {
+                try await switchTo(endpoint: initializer.endpoint)
                 try await blockProcessor.wipe(context: context)
             } catch {
                 subject.send(completion: .failure(error))
