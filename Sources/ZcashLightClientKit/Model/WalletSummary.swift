@@ -37,7 +37,14 @@ struct ScanProgress: Equatable {
             throw ZcashError.rustScanProgressOutOfRange("\(numerator)/\(denominator)")
         }
 
-        let value = Float(numerator) / Float(denominator)
+        print("__LE n: \(numerator) d: \(denominator) progress: \(Float(numerator) / Float(denominator))")
+        
+        var denominatorClamped = denominator
+        if denominatorClamped < numerator {
+            denominatorClamped = numerator
+        }
+        
+        let value = Float(numerator) / Float(denominatorClamped)
         
         // this shouldn't happen but if it does, we need to get notified by clients and work on a fix
         if value > 1.0 {
