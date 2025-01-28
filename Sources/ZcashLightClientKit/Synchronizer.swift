@@ -355,7 +355,7 @@ public protocol Synchronizer: AnyObject {
         keySource: String?
     ) async throws -> AccountUUID
     
-    func queryMemosFor(searchTerm: String) async throws -> [(String, String)]
+    func fetchTxidsWithMemoContaining(searchTerm: String) async throws -> [Data]
 
     /// Rescans the known blocks with the current keys.
     ///
