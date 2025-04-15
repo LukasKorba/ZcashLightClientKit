@@ -9,6 +9,9 @@ and this library adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Added
 - `SDKSynchronizer.estimateBirthdayHeight(for date: Date)`: Get an estimated height for a given date, typically used for estimating birthday.
 
+## Changed
+- `LightWalletGRPCService` updated to use TOR connection for: fetching and submission of the transaction, getting server info, latest block height and tree state.
+
 # 2.2.11 - 2025-04-03
 
 ## Fixed
