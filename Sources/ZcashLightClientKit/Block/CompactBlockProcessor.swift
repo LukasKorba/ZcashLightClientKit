@@ -639,7 +639,7 @@ extension CompactBlockProcessor {
 
         logger.debug("Run ended")
         print("__LD syncTask = nil run() ended")
-        //syncTask?.cancel()
+        syncTask?.cancel()
         syncTask = nil
     }
 
