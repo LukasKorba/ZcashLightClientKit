@@ -382,6 +382,8 @@ extension CompactBlockProcessor {
         if await isIdle() {
             print("__LD CompactBlockProcessor isIdle")
             logger.debug("Sync doesn't run. Executing wipe.")
+            self.backoffTimer?.invalidate()
+            self.backoffTimer = nil
             try await doWipe(context: context)
         } else {
             print("__LD CompactBlockProcessor stop()")
@@ -643,7 +645,6 @@ extension CompactBlockProcessor {
 
         logger.debug("Run ended")
         print("__LD syncTask = nil run() ended")
-        syncTask?.cancel()
         syncTask = nil
     }
 
