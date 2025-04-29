@@ -281,10 +281,15 @@ extension CompactBlockProcessor {
     }
 
     func stop() async {
+        print("__LD stop")
         syncTask?.cancel()
+        print("__LD invalidate")
         self.backoffTimer?.invalidate()
+        print("__LD backoffTimer = nil")
         self.backoffTimer = nil
+        print("__LD stopAllActions")
         await stopAllActions()
+        print("__LD retryAttempts")
         retryAttempts = 0
         serviceFailureRetryAttempts = 0
     }
