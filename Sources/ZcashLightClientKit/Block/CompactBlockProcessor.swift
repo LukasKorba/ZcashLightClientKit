@@ -200,6 +200,7 @@ actor CompactBlockProcessor {
 
     deinit {
         syncTask?.cancel()
+        print("__LD syncTask = nil deinit")
         syncTask = nil
     }
 
@@ -590,6 +591,7 @@ extension CompactBlockProcessor {
 
                 await didFinishAction()
             } catch {
+                print("__LD run() error: \(error)")
                 // Side effect of calling stop is to delete last used download stream. To be sure that it doesn't keep any data in memory.
                 await stopAllActions()
                 logger.error("Sync failed with error: \(error)")
@@ -636,6 +638,8 @@ extension CompactBlockProcessor {
         }
 
         logger.debug("Run ended")
+        print("__LD syncTask = nil run() ended")
+        //syncTask?.cancel()
         syncTask = nil
     }
 
