@@ -565,6 +565,7 @@ extension CompactBlockProcessor {
                     await resetContext()
                     continue
                 } else {
+                    print("__LD .run() syncFinished() is false BREAK")
                     break
                 }
             }
@@ -624,14 +625,17 @@ extension CompactBlockProcessor {
                             await resetContext()
                         } else {
                             // end the sync loop
+                            print("__LD .run() Task.isCancelled BREAK")
                             break
                         }
                     } catch {
                         await failure(error)
+                        print("__LD .run() failure BREAK")
                         break
                     }
                 } else {
                     await handleSyncFailure(action: action, error: error)
+                    print("__LD .run() handleSyncFailure BREAK")
                     break
                 }
             }
