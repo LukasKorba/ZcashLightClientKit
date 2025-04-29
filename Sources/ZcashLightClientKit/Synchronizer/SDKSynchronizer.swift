@@ -133,8 +133,14 @@ public class SDKSynchronizer: Synchronizer {
         name: String,
         keySource: String?
     ) async throws -> Initializer.InitializationResult {
-        guard await status == .unprepared else { return .success }
-
+        let stat = await status
+        print("__LD stat \(stat)")
+        
+        guard await status == .unprepared else {
+            print("__LD this is bad! \(stat)")
+            return .success
+        }
+        
         if let error = checkIfCanContinueInitialisation() {
             throw error
         }

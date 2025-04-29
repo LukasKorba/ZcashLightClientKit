@@ -563,6 +563,10 @@ extension CompactBlockProcessor {
             do {
                 try Task.checkCancellation()
 
+                if backoffTimer == nil {
+                    print("__LD .run() backoffTimer is nil")
+                }
+
                 // Execute action.
                 metrics.actionStart(state)
                 context = try await action.run(with: context) { [weak self] event in
