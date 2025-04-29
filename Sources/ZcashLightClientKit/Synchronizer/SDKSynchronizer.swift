@@ -677,6 +677,7 @@ public class SDKSynchronizer: Synchronizer {
     // MARK: Wipe
 
     public func wipe() -> AnyPublisher<Void, Error> {
+        print("__LD wipe()")
         let subject = PassthroughSubject<Void, Error>()
         Task(priority: .high) {
             if let error = checkIfCanContinueInitialisation() {

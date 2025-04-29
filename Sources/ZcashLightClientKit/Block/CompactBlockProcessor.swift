@@ -376,11 +376,14 @@ private extension CompactBlockProcessor {
 
 extension CompactBlockProcessor {
     func wipe(context: AfterSyncHooksManager.WipeContext) async throws {
+        print("__LD CompactBlockProcessor wipe()")
         logger.debug("Starting wipe")
         if await isIdle() {
+            print("__LD CompactBlockProcessor isIdle")
             logger.debug("Sync doesn't run. Executing wipe.")
             try await doWipe(context: context)
         } else {
+            print("__LD CompactBlockProcessor stop()")
             logger.debug("Stopping sync because of wipe")
             afterSyncHooksManager.insert(hook: .wipe(context))
             await stop()
