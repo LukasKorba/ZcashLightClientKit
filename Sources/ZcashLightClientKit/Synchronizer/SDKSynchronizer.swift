@@ -168,7 +168,7 @@ public class SDKSynchronizer: Synchronizer {
 
         case .syncing:
             logger.warn("warning: Synchronizer started when already running. Next sync process will be started when the current one stops.")
-            tor?.wake()
+            await tor?.wake()
             /// This may look strange but `CompactBlockProcessor` has mechanisms which can handle this situation. So we are fine with calling
             /// it's start here.
             await blockProcessor.start(retry: retry)
@@ -202,7 +202,7 @@ public class SDKSynchronizer: Synchronizer {
                 syncProgress = progress
             }
             await updateStatus(.syncing(syncProgress, areFundsSpendable))
-            tor?.wake()
+            await tor?.wake()
             await blockProcessor.start(retry: retry)
         }
     }
@@ -219,7 +219,7 @@ public class SDKSynchronizer: Synchronizer {
                 return
             }
 
-            tor?.sleep()
+            await tor?.sleep()
             await blockProcessor.stop()
         }
     }
@@ -575,18 +575,18 @@ public class SDKSynchronizer: Synchronizer {
     }
 
     /// Fetches the latest ZEC-USD exchange rate.
-    public func refreshExchangeRateUSD() {
+    public func refreshExchangeRateUSD() async {
         // ignore refresh request when one is already in flight
-        if let latestState = tor?.cachedFiatCurrencyResult?.state, latestState == .fetching {
+        if let latestState = await tor?.cachedFiatCurrencyResult?.state, latestState == .fetching {
             return
         }
         
         // broadcast cached value but update the state
-        if let cachedFiatCurrencyResult = tor?.cachedFiatCurrencyResult {
+        if let cachedFiatCurrencyResult = await tor?.cachedFiatCurrencyResult {
             var fetchingState = cachedFiatCurrencyResult
             fetchingState.state = .fetching
-            tor?.cachedFiatCurrencyResult = fetchingState
-            
+            await tor?.updateCachedFiatCurrencyResult(fetchingState)
+
             exchangeRateUSDSubject.send(fetchingState)
         }
 
@@ -594,17 +594,19 @@ public class SDKSynchronizer: Synchronizer {
             if tor == nil {
                 logger.info("Bootstrapping Tor client for fetching exchange rates")
                 if let torService = initializer.container.resolve(LightWalletService.self) as? LightWalletGRPCServiceOverTor {
-                    tor = try torService.tor?.isolatedClient()
+                    tor = try await torService.tor?.isolatedClient()
+                    try await tor?.initializeNewRuntime()
                 }
             }
             // broadcast new value in case of success
-            exchangeRateUSDSubject.send(try tor?.getExchangeRateUSD())
+            let exchangeRateUSD = try await tor?.getExchangeRateUSD()
+            exchangeRateUSDSubject.send(exchangeRateUSD)
         } catch {
             // broadcast cached value but update the state
-            var errorState = tor?.cachedFiatCurrencyResult
+            var errorState = await tor?.cachedFiatCurrencyResult
             errorState?.state = .error
-            tor?.cachedFiatCurrencyResult = errorState
-            
+            await tor?.updateCachedFiatCurrencyResult(errorState)
+
             exchangeRateUSDSubject.send(errorState)
         }
     }

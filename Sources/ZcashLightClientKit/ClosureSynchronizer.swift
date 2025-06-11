@@ -155,7 +155,7 @@ public protocol ClosureSynchronizer {
 
     func getAccountsBalances(_ completion: @escaping (Result<[AccountUUID: AccountBalance], Error>) -> Void)
 
-    func refreshExchangeRateUSD()
+    func refreshExchangeRateUSD(_ completion: @escaping () -> Void)
 
     func estimateBirthdayHeight(for date: Date, completion: @escaping (BlockHeight) -> Void)
 

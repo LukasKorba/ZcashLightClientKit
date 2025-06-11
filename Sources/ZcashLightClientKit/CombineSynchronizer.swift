@@ -147,7 +147,7 @@ public protocol CombineSynchronizer {
 
     func refreshUTXOs(address: TransparentAddress, from height: BlockHeight) -> SinglePublisher<RefreshedUTXOs, Error>
 
-    func refreshExchangeRateUSD()
+    func refreshExchangeRateUSD() -> CompletablePublisher<Never>
 
     func estimateBirthdayHeight(for date: Date) -> SinglePublisher<BlockHeight, Error>
 

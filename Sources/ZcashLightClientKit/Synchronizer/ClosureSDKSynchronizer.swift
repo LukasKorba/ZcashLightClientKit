@@ -259,8 +259,10 @@ extension ClosureSDKSynchronizer: ClosureSynchronizer {
         }
     }
 
-    public func refreshExchangeRateUSD() {
-        synchronizer.refreshExchangeRateUSD()
+    public func refreshExchangeRateUSD(_ completion: @escaping () -> Void) {
+        AsyncToClosureGateway.executeAction(completion) {
+            await self.synchronizer.refreshExchangeRateUSD()
+        }
     }
 
     public func estimateBirthdayHeight(for date: Date, completion: @escaping (BlockHeight) -> Void) {

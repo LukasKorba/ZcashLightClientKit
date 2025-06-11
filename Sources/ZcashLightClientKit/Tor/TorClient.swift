@@ -8,9 +8,15 @@
 import Foundation
 import libzcashlc
 
-public class TorClient {
-    private let runtime: OpaquePointer
-    public var cachedFiatCurrencyResult: FiatCurrencyResult?
+actor TorClient {
+
+    private enum Runtime {
+        case notCreated(URL)
+        case created(OpaquePointer)
+    }
+
+    private var runtime: Runtime
+    private(set) var cachedFiatCurrencyResult: FiatCurrencyResult?
 
     init(torDir: URL) throws {
         // Ensure that the directory exists.
@@ -23,26 +29,49 @@ public class TorClient {
             }
         }
 
-        let rawDir = torDir.osPathStr()
-        let runtimePtr = zcashlc_create_tor_runtime(rawDir.0, rawDir.1)
-
-        guard let runtimePtr else {
-            throw ZcashError.rustTorClientInit(lastErrorMessage(fallback: "`TorClient` init failed with unknown error"))
-        }
-
-        runtime = runtimePtr
+        runtime = .notCreated(torDir)
     }
 
     private init(runtimePtr: OpaquePointer) {
-        runtime = runtimePtr
+        runtime = .created(runtimePtr)
+    }
+
+    func updateCachedFiatCurrencyResult(_ value: FiatCurrencyResult?) {
+        self.cachedFiatCurrencyResult = value
+    }
+
+    func initializeNewRuntime() async throws {
+        _ = try await initializeNewRuntimePrivate()
+    }
+
+    private func initializeNewRuntimePrivate() async throws -> OpaquePointer {
+        switch runtime {
+        case let .notCreated(torDir):
+            let rawDir = torDir.osPathStr()
+            let runtimePtr = zcashlc_create_tor_runtime(rawDir.0, rawDir.1)
+
+            guard let runtimePtr else {
+                throw ZcashError.rustTorClientInit(lastErrorMessage(fallback: "`TorClient` init failed with unknown error"))
+            }
+
+            self.runtime = .created(runtimePtr)
+            return runtimePtr
+
+        case let .created(runtimePtr):
+            return runtimePtr
+        }
     }
 
     deinit {
-        zcashlc_free_tor_runtime(runtime)
+        if case let .created(runtimePtr) = runtime {
+            zcashlc_free_tor_runtime(runtimePtr)
+        }
     }
 
-    public func isolatedClient() throws -> TorClient {
-        let isolatedPtr = zcashlc_tor_isolated_client(runtime)
+    public func isolatedClient() async throws -> TorClient {
+        let runtimePtr = try await initializeNewRuntimePrivate()
+
+        let isolatedPtr = zcashlc_tor_isolated_client(runtimePtr)
 
         guard let isolatedPtr else {
             throw ZcashError.rustTorIsolatedClient(
@@ -60,8 +89,10 @@ public class TorClient {
     /// a while, especially on mobile platforms.
     ///
     /// - Parameter mode: what level of sleep to put a Tor client into.
-    func setDormant(mode: TorDormantMode) throws {
-        if !zcashlc_tor_set_dormant(runtime, mode) {
+    func setDormant(mode: TorDormantMode) async throws {
+        let runtimePtr = try await initializeNewRuntimePrivate()
+
+        if !zcashlc_tor_set_dormant(runtimePtr, mode) {
             throw ZcashError.rustTorIsolatedClient(
                 lastErrorMessage(
                     fallback:
@@ -71,19 +102,21 @@ public class TorClient {
         }
     }
 
-    public func sleep() {
-        try? setDormant(mode: Soft)
+    public func sleep() async {
+        try? await setDormant(mode: Soft)
     }
     
-    public func wake() {
-        try? setDormant(mode: Normal)
+    public func wake() async {
+        try? await setDormant(mode: Normal)
     }
 
     /// Makes an HTTP request over Tor.
     ///
     /// - Parameter retryLimit: the maximum number of times that a failed request should be retried.
     ///             Set this to 0 to disable retries.
-    public func httpRequest(for request: URLRequest, retryLimit: UInt8) throws -> (Data, HTTPURLResponse) {
+    public func httpRequest(for request: URLRequest, retryLimit: UInt8) async throws -> (Data, HTTPURLResponse) {
+        let runtimePtr = try await initializeNewRuntimePrivate()
+
         let url = request.url
         guard let url else {
             throw ZcashError.rustTorHttpRequest("`TorClient.httpRequest` requires a URL")
@@ -111,7 +144,7 @@ public class TorClient {
             switch request.httpMethod?.lowercased() {
             case "get":
                 responsePtr = zcashlc_tor_http_get(
-                    runtime,
+                    runtimePtr,
                     [CChar](url.absoluteString.utf8CString),
                     headersPtr.baseAddress,
                     UInt(headersPtr.count),
@@ -120,7 +153,7 @@ public class TorClient {
             case "post":
                 let data = request.httpBody ?? Data()
                 responsePtr = zcashlc_tor_http_post(
-                    runtime,
+                    runtimePtr,
                     [CChar](url.absoluteString.utf8CString),
                     headersPtr.baseAddress,
                     UInt(headersPtr.count),
@@ -150,8 +183,9 @@ public class TorClient {
         return response
     }
 
-    public func getExchangeRateUSD() throws -> FiatCurrencyResult {
-        let rate = zcashlc_get_exchange_rate_usd(runtime)
+    public func getExchangeRateUSD() async throws -> FiatCurrencyResult {
+        let runtimePtr = try await initializeNewRuntimePrivate()
+        let rate = zcashlc_get_exchange_rate_usd(runtimePtr)
 
         if rate.is_sign_negative {
             throw ZcashError.rustTorClientGet(lastErrorMessage(fallback: "`TorClient.get` failed with unknown error"))
@@ -172,13 +206,16 @@ public class TorClient {
         return newValue
     }
 
-    public func connectToLightwalletd(endpoint: String) throws -> TorLwdConn {
+    public func connectToLightwalletd(endpoint: String) async throws -> TorLwdConn {
         guard !endpoint.containsCStringNullBytesBeforeStringEnding() else {
             throw ZcashError.rustTorConnectToLightwalletd("endpoint string contains null bytes")
         }
 
+        let runtimePtr = try await initializeNewRuntimePrivate()
+
         let lwdConnPtr = zcashlc_tor_connect_to_lightwalletd(
-            runtime, [CChar](endpoint.utf8CString)
+            runtimePtr,
+            [CChar](endpoint.utf8CString)
         )
 
         guard let lwdConnPtr else {
@@ -206,7 +243,7 @@ public class TorLwdConn {
     /// Submits a raw transaction over lightwalletd.
     /// - Parameter spendTransaction: data representing the transaction to be sent
     /// - Throws: `serviceSubmitFailed` when GRPC call fails.
-    func submit(spendTransaction: Data) throws -> LightWalletServiceResponse {
+    func submit(spendTransaction: Data) async throws -> LightWalletServiceResponse {
         let success = zcashlc_tor_lwd_conn_submit_transaction(
             conn,
             spendTransaction.bytes,
@@ -245,7 +282,7 @@ public class TorLwdConn {
     /// - Throws: LightWalletServiceError
     /// - Returns: LightWalletServiceResponse
     /// - Throws: `serviceFetchTransactionFailed` when GRPC call fails.
-    func fetchTransaction(txId: Data) throws -> (tx: ZcashTransaction.Fetched?, status: TransactionStatus) {
+    func fetchTransaction(txId: Data) async throws -> (tx: ZcashTransaction.Fetched?, status: TransactionStatus) {
         guard txId.count == 32 else {
             throw ZcashError.rustGetMemoInvalidTxIdLength
         }
@@ -280,7 +317,7 @@ public class TorLwdConn {
     
     /// Gets a lightwalletd server info
     /// - Returns: LightWalletdInfo
-    func getInfo() throws -> LightWalletdInfo {
+    func getInfo() async throws -> LightWalletdInfo {
         let infoPtr = zcashlc_tor_lwd_conn_get_info(conn)
         
         guard let infoPtr else {
@@ -309,7 +346,7 @@ public class TorLwdConn {
 
     /// Gets a block at the chain tip of the blockchain
     /// - Returns: Block
-    func latestBlock() throws -> BlockID {
+    func latestBlock() async throws -> BlockID {
         var height: UInt32 = 0
         
         let blockIDPtr = zcashlc_tor_lwd_conn_latest_block(conn, &height)
@@ -328,7 +365,7 @@ public class TorLwdConn {
     /// Gets a tree state for a given height
     /// - Parameter height: heght for what a tree state is requested
     /// - Returns: TreeState
-    func getTreeState(height: BlockHeight) throws -> TreeState {
+    func getTreeState(height: BlockHeight) async throws -> TreeState {
         let treeStatePtr = zcashlc_tor_lwd_conn_get_tree_state(conn, UInt32(height))
         
         guard let treeStatePtr else {

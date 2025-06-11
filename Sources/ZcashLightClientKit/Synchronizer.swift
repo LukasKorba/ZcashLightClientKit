@@ -340,7 +340,7 @@ public protocol Synchronizer: AnyObject {
     func getAccountsBalances() async throws -> [AccountUUID: AccountBalance]
 
     /// Fetches the latest ZEC-USD exchange rate and updates `exchangeRateUSDSubject`.
-    func refreshExchangeRateUSD()
+    func refreshExchangeRateUSD() async
 
     /// Returns a list of the accounts in the wallet.
     func listAccounts() async throws -> [Account]

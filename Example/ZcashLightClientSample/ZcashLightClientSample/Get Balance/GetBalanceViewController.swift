@@ -37,8 +37,10 @@ class GetBalanceViewController: UIViewController {
             self?.rate = result
             self?.updateLabels()
         }
-        
-        synchronizer.refreshExchangeRateUSD()
+
+        Task {
+            await synchronizer.refreshExchangeRateUSD()
+        }
     }
     
     func updateLabels() {

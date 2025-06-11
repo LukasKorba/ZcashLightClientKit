@@ -256,8 +256,10 @@ extension CombineSDKSynchronizer: CombineSynchronizer {
         }
     }
 
-    public func refreshExchangeRateUSD() {
-        synchronizer.refreshExchangeRateUSD()
+    public func refreshExchangeRateUSD() -> CompletablePublisher<Never> {
+        AsyncToCombineGateway.executeAction() {
+            await self.synchronizer.refreshExchangeRateUSD()
+        }
     }
 
     public func estimateBirthdayHeight(for date: Date) -> SinglePublisher<BlockHeight, Error> {
