@@ -11,19 +11,19 @@ import ZcashLightClientKit
 
 class TestServersViewController: UIViewController {
     let endpoints: [LightWalletEndpoint] = [
-        LightWalletEndpoint(address: "zec.rocks", port: 443),
-        LightWalletEndpoint(address: "na.zec.rocks", port: 443),
-        LightWalletEndpoint(address: "sa.zec.rocks", port: 443),
-        LightWalletEndpoint(address: "eu.zec.rocks", port: 443),
-        LightWalletEndpoint(address: "ap.zec.rocks", port: 443),
-        LightWalletEndpoint(address: "lwd1.zcash-infra.com", port: 9067),
-        LightWalletEndpoint(address: "lwd2.zcash-infra.com", port: 9067),
+//        LightWalletEndpoint(address: "zec.rocks", port: 443),
+//        LightWalletEndpoint(address: "na.zec.rocks", port: 443),
+//        LightWalletEndpoint(address: "sa.zec.rocks", port: 443),
+//        LightWalletEndpoint(address: "eu.zec.rocks", port: 443),
+//        LightWalletEndpoint(address: "ap.zec.rocks", port: 443),
+//        LightWalletEndpoint(address: "lwd1.zcash-infra.com", port: 9067),
+//        LightWalletEndpoint(address: "lwd2.zcash-infra.com", port: 9067),
         LightWalletEndpoint(address: "lwd3.zcash-infra.com", port: 9067),
-        LightWalletEndpoint(address: "lwd4.zcash-infra.com", port: 9067),
-        LightWalletEndpoint(address: "lwd5.zcash-infra.com", port: 9067),
-        LightWalletEndpoint(address: "lwd6.zcash-infra.com", port: 9067),
-        LightWalletEndpoint(address: "lwd7.zcash-infra.com", port: 9067),
-        LightWalletEndpoint(address: "lwd8.zcash-infra.com", port: 9067)
+//        LightWalletEndpoint(address: "lwd4.zcash-infra.com", port: 9067),
+//        LightWalletEndpoint(address: "lwd5.zcash-infra.com", port: 9067),
+//        LightWalletEndpoint(address: "lwd6.zcash-infra.com", port: 9067),
+//        LightWalletEndpoint(address: "lwd7.zcash-infra.com", port: 9067),
+//        LightWalletEndpoint(address: "lwd8.zcash-infra.com", port: 9067)
     ]
     
     @IBOutlet weak var resultsLabel: UILabel!
@@ -38,10 +38,10 @@ class TestServersViewController: UIViewController {
     @IBAction func testServers(_ sender: Any) {
         let synchronizer = AppDelegate.shared.sharedSynchronizer
         testServersBtn.isEnabled = false
-        
-        startTime = Date().timeIntervalSince1970
-        
+
         Task {
+            try? await synchronizer.tor(enabled: true)
+            startTime = Date().timeIntervalSince1970
             let results = await synchronizer.evaluateBestOf(endpoints: endpoints)
             
             await showResults(results)

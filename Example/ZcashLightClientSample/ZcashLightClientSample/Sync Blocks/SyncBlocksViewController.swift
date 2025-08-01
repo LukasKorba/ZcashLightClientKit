@@ -93,6 +93,7 @@ class SyncBlocksViewController: UIViewController {
     }
 
     func doStartStop() async {
+        //try? await synchronizer.tor(enabled: true)
         let syncStatus = synchronizer.latestState.syncStatus
         switch syncStatus {
         case .unprepared, .error, .stopped:

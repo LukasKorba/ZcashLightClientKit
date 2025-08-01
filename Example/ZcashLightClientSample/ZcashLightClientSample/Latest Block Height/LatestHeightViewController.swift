@@ -12,6 +12,8 @@ import ZcashLightClientKit
 class LatestHeightViewController: UIViewController {
     @IBOutlet weak var blockHeightLabel: UILabel!
 
+    @IBOutlet weak var torSetupLabel: UILabel!
+
     let synchronizer = AppDelegate.shared.sharedSynchronizer
     var model: BlockHeight? {
         didSet {
@@ -30,6 +32,34 @@ class LatestHeightViewController: UIViewController {
         super.viewWillAppear(animated)
         
         /// Note: It's safe to modify model or call fail() because all methods of a UIViewController are MainActor methods by default.
+    }
+    
+    @IBAction func torOn() {
+        torSetupLabel.text = "setting..."
+        Task {
+            do {
+                try await synchronizer.tor(enabled: true)
+                torSetupLabel.text = "done"
+            } catch {
+                print(error)
+            }
+        }
+    }
+
+    @IBAction func torOff() {
+        torSetupLabel.text = "setting..."
+        Task {
+            do {
+                try await synchronizer.tor(enabled: false)
+                torSetupLabel.text = "done"
+            } catch {
+                print(error)
+            }
+        }
+    }
+    
+    @IBAction func load() {
+        blockHeightLabel.text = "loading..."
         Task {
             do {
                 model = try await synchronizer.latestHeight()
@@ -38,7 +68,8 @@ class LatestHeightViewController: UIViewController {
             }
         }
     }
-    
+
+
     func setup() {
         guard let model = self.model else {
             return
