@@ -1069,7 +1069,7 @@ public class SDKSynchronizer: Synchronizer {
             mode: await sdkFlags.ifTor(.uniqueTor)
         )
     }
-    
+
     public func enhanceTransactionBy(id: String) async throws -> Void {
         guard let txIdData = id.txIdToBytes()?.data else {
             throw ZcashError.synchronizerEnhanceTransactionById32Bytes
