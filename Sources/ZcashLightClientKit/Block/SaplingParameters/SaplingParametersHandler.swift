@@ -61,6 +61,7 @@ extension SaplingParametersHandlerImpl: SaplingParametersHandler {
         }
 
         try await SaplingParameterDownloader.downloadParamsIfnotPresent(
+            retryEnabled: true,
             spendURL: config.spendParamsURL,
             spendSourceURL: config.saplingParamsSourceURL.spendParamFileURL,
             outputURL: config.outputParamsURL,
