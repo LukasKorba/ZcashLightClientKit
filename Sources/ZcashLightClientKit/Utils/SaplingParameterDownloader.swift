@@ -59,15 +59,33 @@ public enum SaplingParameterDownloader {
     ///     - `saplingParamsInvalidOutputParams` if the downloaded file is invalid.
     @discardableResult
     public static func downloadParamsIfnotPresent(
+        retryEnabled: Bool = false,
         spendURL: URL,
         spendSourceURL: URL,
         outputURL: URL,
         outputSourceURL: URL,
         logger: Logger
     ) async throws -> (spend: URL, output: URL) {
+        if retryEnabled {
+            var retryAttempts = 3
+            
+            while retryAttempts > 0 {
+                do {
+                    async let spendResultURL = ensureSpendParameter(at: spendURL, sourceURL: spendSourceURL, logger: logger)
+                    async let outputResultURL = ensureOutputParameter(at: outputURL, sourceURL: outputSourceURL, logger: logger)
+                    
+                    let results = try await [spendResultURL, outputResultURL]
+                    return (spend: results[0], output: results[1])
+                } catch {
+                    retryAttempts -= 1
+                    try await Task.sleep(nanoseconds: 10_000_000_000)
+                }
+            }
+        }
+        
         async let spendResultURL = ensureSpendParameter(at: spendURL, sourceURL: spendSourceURL, logger: logger)
         async let outputResultURL = ensureOutputParameter(at: outputURL, sourceURL: outputSourceURL, logger: logger)
-
+        
         let results = try await [spendResultURL, outputResultURL]
         return (spend: results[0], output: results[1])
     }
