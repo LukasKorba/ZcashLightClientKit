@@ -6,11 +6,31 @@ and this library adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 # Unreleased
 
+# 2.4.2 - 2025-12-16
+
 ## Added
 - `SDKSynchronizer.deleteAccount(AccountUUID)`: Deletes the specified account, and all transactions that exclusively involve it, from the wallet database.
 
 ## Changed
 - `downloadParamsIfnotPresent` now retries up to three times on sync pipeline failure.
+
+## Checkpoints
+
+Mainnet
+
+````
+Sources/ZcashLightClientKit/Resources/checkpoints/mainnet/3157500.json
+...
+Sources/ZcashLightClientKit/Resources/checkpoints/mainnet/3170000.json
+````
+
+Testnet
+
+````
+Sources/ZcashLightClientKit/Resources/checkpoints/testnet/3720000.json
+...
+Sources/ZcashLightClientKit/Resources/checkpoints/testnet/3730000.json
+````
 
 # 2.4.1 - 2025-12-03
 
