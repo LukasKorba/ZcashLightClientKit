@@ -6,7 +6,10 @@ and this library adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 # Unreleased
 
+# 2.4.5 - 2026-03-06
+
 ## Fixed
+- Fix for a long-standing note commitment tree corruption error.
 
 ## Checkpoints
 
