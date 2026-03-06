@@ -6,9 +6,29 @@ and this library adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 # Unreleased
 
+## Fixed
+
 ## Checkpoints
 
+Mainnet
+
+````
+Sources/ZcashLightClientKit/Resources/checkpoints/mainnet/3252500.json
+...
+Sources/ZcashLightClientKit/Resources/checkpoints/mainnet/3262500.json
+````
+
+Testnet
+
+````
+Sources/ZcashLightClientKit/Resources/checkpoints/testnet/3870000.json
+...
+Sources/ZcashLightClientKit/Resources/checkpoints/testnet/3880000.json
+````
+
 # 2.4.4 - 2026-02-24
+
+## Checkpoints
 
 Mainnet
 
