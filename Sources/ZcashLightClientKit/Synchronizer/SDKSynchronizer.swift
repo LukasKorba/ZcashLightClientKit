@@ -47,7 +47,7 @@ public class SDKSynchronizer: Synchronizer {
     public let initializer: Initializer
     public var connectionState: ConnectionState
     public let network: ZcashNetwork
-    private let transactionEncoder: TransactionEncoder
+    private var transactionEncoder: TransactionEncoder
     private let transactionRepository: TransactionRepository
 
     private let syncSessionIDGenerator: SyncSessionIDGenerator
@@ -1148,6 +1148,31 @@ public class SDKSynchronizer: Synchronizer {
             return LatestBlocksDataProviderImpl(service: service, rustBackend: rustBackend, sdkFlags: sdkFlags)
         }
         
+        // TransactionEncoder dependency update
+        let config = await blockProcessor.config
+        let fsBlockDbRoot = initializer.fsBlockDbRoot
+        
+        initializer.container.register(type: TransactionEncoder.self, isSingleton: true) { di in
+            let service = di.resolve(LightWalletService.self)
+            let logger = di.resolve(Logger.self)
+            let transactionRepository = di.resolve(TransactionRepository.self)
+            let rustBackend = di.resolve(ZcashRustBackendWelding.self)
+            let sdkFlags = di.resolve(SDKFlags.self)
+
+            return WalletTransactionEncoder(
+                rustBackend: rustBackend,
+                dataDb: config.dataDb,
+                fsBlockDbRoot: fsBlockDbRoot,
+                service: service,
+                repository: transactionRepository,
+                outputParams: config.outputParamsURL,
+                spendParams: config.spendParamsURL,
+                networkType: config.network.networkType,
+                logger: logger,
+                sdkFlags: sdkFlags
+            )
+        }
+        
         // CompactBlockProcessor dependency update
         Dependencies.setupCompactBlockProcessor(
             in: initializer.container,
@@ -1161,6 +1186,7 @@ public class SDKSynchronizer: Synchronizer {
 
         // SELF
         self.latestBlocksDataProvider = initializer.container.resolve(LatestBlocksDataProvider.self)
+        self.transactionEncoder = initializer.container.resolve(TransactionEncoder.self)
         
         // COMPACT BLOCK PROCESSOR
         await blockProcessor.updateService(initializer.container)

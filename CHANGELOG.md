@@ -6,6 +6,9 @@ and this library adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 # Unreleased
 
+## Fixed
+- `switchTo` server updates `TransactionEncoder`. It was missing and submission of the transactions went through the previous server instead of a currecnt one. 
+
 # 2.4.5 - 2026-03-06
 
 ## Fixed

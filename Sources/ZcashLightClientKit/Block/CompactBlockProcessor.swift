@@ -515,6 +515,11 @@ extension CompactBlockProcessor {
         let updatedUTXOFetcher = container.resolve(UTXOFetcher.self)
 
         (actions[.fetchUTXO] as? FetchUTXOsAction)?.utxoFetcher = updatedUTXOFetcher
+        
+        // TransactionEncoder
+        let transactionEncoder = container.resolve(TransactionEncoder.self)
+        
+        (actions[.txResubmission] as? TxResubmissionAction)?.transactionEncoder = transactionEncoder
     }
 }
 

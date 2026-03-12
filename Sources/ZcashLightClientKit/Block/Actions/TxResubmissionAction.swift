@@ -14,7 +14,7 @@ final class TxResubmissionAction {
     
     var latestResolvedTime: TimeInterval = 0
     let transactionRepository: TransactionRepository
-    let transactionEncoder: TransactionEncoder
+    var transactionEncoder: TransactionEncoder
     let logger: Logger
 
     init(container: DIContainer) {
