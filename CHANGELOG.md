@@ -6,8 +6,30 @@ and this library adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 # Unreleased
 
+# 2.4.7 - 2026-03-20
+
+## Checkpoints
+
+Mainnet
+
+````
+Sources/ZcashLightClientKit/Resources/checkpoints/mainnet/3265000.json
+...
+Sources/ZcashLightClientKit/Resources/checkpoints/mainnet/3277500.json
+````
+
+Testnet
+
+````
+Sources/ZcashLightClientKit/Resources/checkpoints/testnet/3890000.json
+...
+Sources/ZcashLightClientKit/Resources/checkpoints/testnet/3900000.json
+````
+
+# 2.4.6 - 2026-03-12
+
 ## Fixed
-- `switchTo` server updates `TransactionEncoder`. It was missing and submission of the transactions went through the previous server instead of a currecnt one. 
+- `switchTo` server updates `TransactionEncoder`. It was missing and submission of the transactions went through the previous server instead of a current one. 
 
 # 2.4.5 - 2026-03-06
 
