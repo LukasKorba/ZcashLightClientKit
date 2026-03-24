@@ -122,8 +122,7 @@ class LightWalletGRPCService: LightWalletService {
     }
 
     deinit {
-        _ = channel?.close()
-        _ = compactTxStreamer.channel.close()
+        stop()
     }
 
     func resolveLazyConnect() -> CompactTxStreamerAsyncClient {
@@ -159,6 +158,8 @@ class LightWalletGRPCService: LightWalletService {
 
     func stop() {
         _ = channel?.close()
+        channel = nil
+        compactTxStreamerInternal = nil
     }
 
     func latestBlock(mode: ServiceMode) async throws -> BlockID {
@@ -450,7 +451,7 @@ class LightWalletGRPCService: LightWalletService {
     }
     
     func closeConnections() async {
-        _ = channel?.close()
+        stop()
     }
 }
 
