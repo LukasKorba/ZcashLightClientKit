@@ -6,6 +6,27 @@ and this library adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 # Unreleased
 
+# 2.4.8 - 2026-03-25
+
+## Fixed
+- Networking connections are closed properly, resetting the state and letting the next re-run to properly initialize. This fixes the issues with restore after reset and also server switch issues. 
+
+## Checkpoints
+
+Mainnet
+
+````
+Sources/ZcashLightClientKit/Resources/checkpoints/mainnet/3280000.json
+...
+Sources/ZcashLightClientKit/Resources/checkpoints/mainnet/3282500.json
+````
+
+Testnet
+
+````
+Sources/ZcashLightClientKit/Resources/checkpoints/testnet/3910000.json
+````
+
 # 2.4.7 - 2026-03-20
 
 ## Checkpoints
