@@ -128,7 +128,8 @@ public protocol CombineSynchronizer {
         zip32AccountIndex: Zip32AccountIndex?,
         purpose: AccountPurpose,
         name: String,
-        keySource: String?
+        keySource: String?,
+        birthday: BlockHeight?
     ) async throws -> SinglePublisher<AccountUUID, Error>
 
     var allTransactions: SinglePublisher<[ZcashTransaction.Overview], Never> { get }

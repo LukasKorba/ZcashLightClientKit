@@ -134,6 +134,7 @@ public protocol ClosureSynchronizer {
         purpose: AccountPurpose,
         name: String,
         keySource: String?,
+        birthday: BlockHeight?,
         completion: @escaping (Result<AccountUUID, Error>) -> Void
     ) async throws
 
