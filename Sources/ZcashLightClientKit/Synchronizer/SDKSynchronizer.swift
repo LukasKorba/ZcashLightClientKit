@@ -355,9 +355,7 @@ public class SDKSynchronizer: Synchronizer {
         
         let checkpoint = checkpointSource.birthday(for: birthday ?? BlockHeight(chainTip))
 
-        try await initializer.rustBackend.rewindToChainState(chainState: checkpoint.treeState())
-        
-        return try await initializer.rustBackend.importAccount(
+        let accountUUID = try await initializer.rustBackend.importAccount(
             ufvk: ufvk,
             seedFingerprint: seedFingerprint,
             zip32AccountIndex: zip32AccountIndex,
@@ -367,6 +365,10 @@ public class SDKSynchronizer: Synchronizer {
             name: name,
             keySource: keySource
         )
+        
+        try await initializer.rustBackend.rewindToChainState(chainState: checkpoint.treeState())
+
+        return accountUUID
     }
 
     public func proposeTransfer(accountUUID: AccountUUID, recipient: Recipient, amount: Zatoshi, memo: Memo?) async throws -> Proposal {
