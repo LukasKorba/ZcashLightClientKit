@@ -365,6 +365,9 @@ public protocol Synchronizer: AnyObject {
 
     func fetchTxidsWithMemoContaining(searchTerm: String) async throws -> [Data]
 
+    /// Rescans from the given `BlockHeight`.
+    func rescanFrom(height: BlockHeight) async throws
+
     /// Rescans the known blocks with the current keys.
     ///
     /// `rewind(policy:)` can be called anytime. If the sync process is in progress then it is stopped first. In this case, it make some significant
