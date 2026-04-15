@@ -1427,8 +1427,9 @@ dependencies = [
 
 [[package]]
 name = "eip681"
-version = "0.0.0"
-source = "git+https://github.com/zcash/librustzcash.git?branch=feat%2Feip681-from-parts#df6b7c498a727802cae929793f5804063635f2f5"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f3c9c0416f224ce25ea2b710bf8abd4e5e41e41fe8e75685ae1519d5d5d2276"
 dependencies = [
  "base64",
  "ens-normalize-rs",
@@ -3404,7 +3405,7 @@ dependencies = [
  "derive-deftly",
  "libc",
  "paste",
- "thiserror 1.0.69",
+ "thiserror 2.0.17",
 ]
 
 [[package]]

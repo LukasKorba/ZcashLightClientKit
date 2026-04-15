@@ -8,6 +8,7 @@
 #   3. Uploads to GitHub as a DRAFT release
 #   4. Writes release info to BuildSupport/products/release.env
 #   5. Outputs the values needed for Package.swift
+#
 # After running this script:
 #   1. Update Package.swift with the URL and checksum
 #   2. Commit the Package.swift change
