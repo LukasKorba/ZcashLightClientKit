@@ -134,9 +134,13 @@ jobs:
         cp -R BuildSupport/products/libzcashlc.xcframework LocalPackages/
         cp BuildSupport/LocalPackages-Package.swift LocalPackages/Package.swift
 
+    - name: Resolve Swift dependencies
+      if: matrix.language == 'swift'
+      run: swift package resolve
+
     - name: Build Swift package
       if: matrix.language == 'swift'
-      timeout-minutes: 15
+      timeout-minutes: 30
       run: swift build
 
     # --- End Swift manual build steps ---
