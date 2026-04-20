@@ -2083,25 +2083,25 @@ class SynchronizerMock: Synchronizer {
 
     // MARK: - importAccount
 
-    var importAccountUfvkSeedFingerprintZip32AccountIndexPurposeNameKeySourceThrowableError: Error?
-    var importAccountUfvkSeedFingerprintZip32AccountIndexPurposeNameKeySourceCallsCount = 0
-    var importAccountUfvkSeedFingerprintZip32AccountIndexPurposeNameKeySourceCalled: Bool {
-        return importAccountUfvkSeedFingerprintZip32AccountIndexPurposeNameKeySourceCallsCount > 0
+    var importAccountUfvkSeedFingerprintZip32AccountIndexPurposeNameKeySourceBirthdayThrowableError: Error?
+    var importAccountUfvkSeedFingerprintZip32AccountIndexPurposeNameKeySourceBirthdayCallsCount = 0
+    var importAccountUfvkSeedFingerprintZip32AccountIndexPurposeNameKeySourceBirthdayCalled: Bool {
+        return importAccountUfvkSeedFingerprintZip32AccountIndexPurposeNameKeySourceBirthdayCallsCount > 0
     }
-    var importAccountUfvkSeedFingerprintZip32AccountIndexPurposeNameKeySourceReceivedArguments: (ufvk: String, seedFingerprint: [UInt8]?, zip32AccountIndex: Zip32AccountIndex?, purpose: AccountPurpose, name: String, keySource: String?)?
-    var importAccountUfvkSeedFingerprintZip32AccountIndexPurposeNameKeySourceReturnValue: AccountUUID!
-    var importAccountUfvkSeedFingerprintZip32AccountIndexPurposeNameKeySourceClosure: ((String, [UInt8]?, Zip32AccountIndex?, AccountPurpose, String, String?) async throws -> AccountUUID)?
+    var importAccountUfvkSeedFingerprintZip32AccountIndexPurposeNameKeySourceBirthdayReceivedArguments: (ufvk: String, seedFingerprint: [UInt8]?, zip32AccountIndex: Zip32AccountIndex?, purpose: AccountPurpose, name: String, keySource: String?, birthday: BlockHeight?)?
+    var importAccountUfvkSeedFingerprintZip32AccountIndexPurposeNameKeySourceBirthdayReturnValue: AccountUUID!
+    var importAccountUfvkSeedFingerprintZip32AccountIndexPurposeNameKeySourceBirthdayClosure: ((String, [UInt8]?, Zip32AccountIndex?, AccountPurpose, String, String?, BlockHeight?) async throws -> AccountUUID)?
 
-    func importAccount(ufvk: String, seedFingerprint: [UInt8]?, zip32AccountIndex: Zip32AccountIndex?, purpose: AccountPurpose, name: String, keySource: String?) async throws -> AccountUUID {
-        if let error = importAccountUfvkSeedFingerprintZip32AccountIndexPurposeNameKeySourceThrowableError {
+    func importAccount(ufvk: String, seedFingerprint: [UInt8]?, zip32AccountIndex: Zip32AccountIndex?, purpose: AccountPurpose, name: String, keySource: String?, birthday: BlockHeight?) async throws -> AccountUUID {
+        if let error = importAccountUfvkSeedFingerprintZip32AccountIndexPurposeNameKeySourceBirthdayThrowableError {
             throw error
         }
-        importAccountUfvkSeedFingerprintZip32AccountIndexPurposeNameKeySourceCallsCount += 1
-        importAccountUfvkSeedFingerprintZip32AccountIndexPurposeNameKeySourceReceivedArguments = (ufvk: ufvk, seedFingerprint: seedFingerprint, zip32AccountIndex: zip32AccountIndex, purpose: purpose, name: name, keySource: keySource)
-        if let closure = importAccountUfvkSeedFingerprintZip32AccountIndexPurposeNameKeySourceClosure {
-            return try await closure(ufvk, seedFingerprint, zip32AccountIndex, purpose, name, keySource)
+        importAccountUfvkSeedFingerprintZip32AccountIndexPurposeNameKeySourceBirthdayCallsCount += 1
+        importAccountUfvkSeedFingerprintZip32AccountIndexPurposeNameKeySourceBirthdayReceivedArguments = (ufvk: ufvk, seedFingerprint: seedFingerprint, zip32AccountIndex: zip32AccountIndex, purpose: purpose, name: name, keySource: keySource, birthday: birthday)
+        if let closure = importAccountUfvkSeedFingerprintZip32AccountIndexPurposeNameKeySourceBirthdayClosure {
+            return try await closure(ufvk, seedFingerprint, zip32AccountIndex, purpose, name, keySource, birthday)
         } else {
-            return importAccountUfvkSeedFingerprintZip32AccountIndexPurposeNameKeySourceReturnValue
+            return importAccountUfvkSeedFingerprintZip32AccountIndexPurposeNameKeySourceBirthdayReturnValue
         }
     }
 
