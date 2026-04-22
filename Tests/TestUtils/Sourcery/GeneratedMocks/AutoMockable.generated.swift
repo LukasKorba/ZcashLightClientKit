@@ -2504,6 +2504,25 @@ class SynchronizerMock: Synchronizer {
         try await deleteAccountClosure!(accountUUID)
     }
 
+    // MARK: - rescanFrom
+
+    var rescanFromHeightThrowableError: Error?
+    var rescanFromHeightCallsCount = 0
+    var rescanFromHeightCalled: Bool {
+        return rescanFromHeightCallsCount > 0
+    }
+    var rescanFromHeightReceivedHeight: BlockHeight?
+    var rescanFromHeightClosure: ((BlockHeight) async throws -> Void)?
+
+    func rescanFrom(height: BlockHeight) async throws {
+        if let error = rescanFromHeightThrowableError {
+            throw error
+        }
+        rescanFromHeightCallsCount += 1
+        rescanFromHeightReceivedHeight = height
+        try await rescanFromHeightClosure?(height)
+    }
+
 }
 class TransactionRepositoryMock: TransactionRepository {
 
