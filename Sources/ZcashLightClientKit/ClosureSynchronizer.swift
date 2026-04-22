@@ -169,4 +169,6 @@ public protocol ClosureSynchronizer {
      */
     func rewind(_ policy: RewindPolicy) -> CompletablePublisher<Error>
     func wipe() -> CompletablePublisher<Error>
+    
+    func rescanFrom(height: BlockHeight, completion: @escaping (Error?) -> Void)
 }

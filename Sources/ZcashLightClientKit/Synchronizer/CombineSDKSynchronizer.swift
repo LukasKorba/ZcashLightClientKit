@@ -278,4 +278,10 @@ extension CombineSDKSynchronizer: CombineSynchronizer {
     
     public func rewind(_ policy: RewindPolicy) -> CompletablePublisher<Error> { synchronizer.rewind(policy) }
     public func wipe() -> CompletablePublisher<Error> { synchronizer.wipe() }
+    
+    public func rescanFrom(height: BlockHeight) -> CompletablePublisher<Error> {
+        AsyncToCombineGateway.executeThrowingAction() {
+            try await self.synchronizer.rescanFrom(height: height)
+        }
+    }
 }
