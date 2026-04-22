@@ -668,20 +668,18 @@ public class SDKSynchronizer: Synchronizer {
     // MARK: Rescan
 
     public func rescanFrom(height: BlockHeight) async throws {
-        var rescanHeight = height
-        
         // Ensure sapling activation is the lowest possible
         let saplingActivationHeight = network.networkType == .mainnet
         ? ZcashMainnet().constants.saplingActivationHeight
         : ZcashTestnet().constants.saplingActivationHeight
 
-        if rescanHeight < saplingActivationHeight {
-            rescanHeight = saplingActivationHeight
+        guard height >= saplingActivationHeight else {
+            throw ZcashError.rescanFromHeightBellowSaplingActivation
         }
 
         let checkpointSource = initializer.container.resolve(CheckpointSource.self)
 
-        let checkpoint = checkpointSource.birthday(for: rescanHeight)
+        let checkpoint = checkpointSource.birthday(for: height)
 
         try await initializer.rustBackend.rewindToChainState(chainState: checkpoint.treeState())
     }
