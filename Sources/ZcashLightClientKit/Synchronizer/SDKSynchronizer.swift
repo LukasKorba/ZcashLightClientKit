@@ -665,6 +665,25 @@ public class SDKSynchronizer: Synchronizer {
         try await blockProcessor.getCustomUnifiedAddress(accountUUID: accountUUID, receivers: receivers)
     }
 
+    // MARK: Rescan
+
+    public func rescanFrom(height: BlockHeight) async throws {
+        // Ensure sapling activation is the lowest possible
+        let saplingActivationHeight = network.networkType == .mainnet
+        ? ZcashMainnet().constants.saplingActivationHeight
+        : ZcashTestnet().constants.saplingActivationHeight
+
+        guard height >= saplingActivationHeight else {
+            throw ZcashError.rescanFromHeightBellowSaplingActivation
+        }
+
+        let checkpointSource = initializer.container.resolve(CheckpointSource.self)
+
+        let checkpoint = checkpointSource.birthday(for: height)
+
+        try await initializer.rustBackend.rewindToChainState(chainState: checkpoint.treeState())
+    }
+    
     // MARK: Rewind
 
     public func rewind(_ policy: RewindPolicy) -> AnyPublisher<Void, Error> {

@@ -6,6 +6,9 @@ and this library adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 # Unreleased
 
+## Added
+- `SDKSynchronizer.rescanFrom(height:)`: Rescans the chain from the given BlockHeight.
+
 # 2.4.9 - 2026-04-04
 
 ## Checkpoints

@@ -831,7 +831,10 @@ enum ZcashErrorDefinition {
     /// The spending key does not belong to the wallet.
     // sourcery: code="ZSYNCO0008"
     case synchronizerSpendingKeyDoesNotBelongToTheWallet
-    
+    /// The attempt to rescan to height that is bellow sapling activation.
+    // sourcery: code="ZSYNCO0009"
+    case rescanFromHeightBellowSaplingActivation
+
     // MARK: - Models
     
     /// Attempt to init TxId with input that is not 32 bytes.
