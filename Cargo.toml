@@ -1,6 +1,6 @@
 [package]
 name = "libzcashlc"
-version = "2.5.1"
+version = "2.5.2"
 authors = [
     "Jack Grigg <thestr4d@gmail.com>",
     "Lukas Korba <lukas@tangiblecodes.com>",
@@ -106,3 +106,8 @@ crate-type = ["staticlib"]
 
 [profile.release]
 lto = true
+
+[patch.crates-io]
+voting-circuits = { git = "https://github.com/zodl-inc/voting-circuits.git", rev = "ed1ea27234e251e98a4b0bf9fcff11babccf1b92" }
+imt-tree = { git = "https://github.com/zodl-inc/vote-nullifier-pir.git", rev = "2411f119cdcff9f8452be7144628948b4088a96f" }
+zcash_voting = { git = "https://github.com/zodl-inc/zcash_voting.git", rev = "f9d7d201037c0e3fba9adc95f362a27082710ccc" }
