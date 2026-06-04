@@ -2508,7 +2508,7 @@ dependencies = [
 
 [[package]]
 name = "libzcashlc"
-version = "2.5.2"
+version = "2.6.0-alpha.3"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -7290,18 +7290,3 @@ dependencies = [
  "cc",
  "pkg-config",
 ]
-
-[[patch.unused]]
-name = "imt-tree"
-version = "0.1.1"
-source = "git+https://github.com/zodl-inc/vote-nullifier-pir.git?rev=2411f119cdcff9f8452be7144628948b4088a96f#2411f119cdcff9f8452be7144628948b4088a96f"
-
-[[patch.unused]]
-name = "voting-circuits"
-version = "0.4.2"
-source = "git+https://github.com/zodl-inc/voting-circuits.git?rev=ed1ea27234e251e98a4b0bf9fcff11babccf1b92#ed1ea27234e251e98a4b0bf9fcff11babccf1b92"
-
-[[patch.unused]]
-name = "zcash_voting"
-version = "0.5.12"
-source = "git+https://github.com/zodl-inc/zcash_voting.git?rev=f9d7d201037c0e3fba9adc95f362a27082710ccc#f9d7d201037c0e3fba9adc95f362a27082710ccc"
