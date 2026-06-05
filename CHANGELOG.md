@@ -6,6 +6,12 @@ and this library adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 # Unreleased
 
+## Fixed
+- Fixed `[ZUTXO0001] Awaiting transactions from the stream failed` (and the same
+  latent timeout on the subtree-root, transparent-address-txid, and block-range
+  streams): these server-streaming gRPC calls now use the streaming-call timeout
+  instead of the shorter single-call timeout.
+
 # 2.6.0-alpha.4
 
 This release updates from 2.6.0-alpha.3 to integrate support for the NU6.2
