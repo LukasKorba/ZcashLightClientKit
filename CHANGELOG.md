@@ -6,6 +6,11 @@ and this library adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 # Unreleased
 
+# 2.6.0-alpha.5
+
+This release updates from 2.6.0-alpha.4 to fix premature timeouts on UTXO and
+other server-streaming gRPC calls (`[ZUTXO0001]`).
+
 ## Fixed
 - Fixed `[ZUTXO0001] Awaiting transactions from the stream failed` (and the same
   latent timeout on the subtree-root, transparent-address-txid, and block-range
