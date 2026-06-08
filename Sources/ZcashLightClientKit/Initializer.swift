@@ -461,14 +461,17 @@ public class Initializer {
                 }
             case .newWallet:
                 if let latestBlockHeight = try? await lightWalletService.latestBlockHeight(mode: await sdkFlags.ifTor(.uniqueTor)) {
-                    // Fetch the tree state at the chain tip so the birthday equals chain_tip + 1,
-                    // producing zero scan ranges. This eliminates unnecessary block scanning for
-                    // wallets with no transaction history.
+                    // Fetch a recent tree state below the reorg horizon so funds intended for the
+                    // wallet can't be missed if the current chain tip is reorganized.
+                    let birthdayTreeStateHeight = max(
+                        latestBlockHeight - ZcashSDK.maxReorgSize,
+                        network.constants.saplingActivationHeight
+                    )
                     var blockID = BlockID()
-                    blockID.height = UInt64(latestBlockHeight)
+                    blockID.height = UInt64(birthdayTreeStateHeight)
                     if let serverTreeState = try? await lightWalletService.getTreeState(blockID, mode: await sdkFlags.ifTor(.uniqueTor)) {
                         accountTreeState = serverTreeState
-                        self.walletBirthday = latestBlockHeight
+                        self.walletBirthday = birthdayTreeStateHeight
                     }
                 }
             case .existingWallet:

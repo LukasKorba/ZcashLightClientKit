@@ -7,7 +7,7 @@ and this library adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 # Unreleased
 
 ## Changed
-- New wallets now use the chain-tip tree state from the lightwalletd server as the wallet birthday, eliminating unnecessary block scanning on first launch. Falls back to the bundled checkpoint if the server is unreachable.
+- New wallets now use a recent tree state from the lightwalletd server as the wallet birthday, reducing unnecessary block scanning on first launch while retaining reorg safety. Falls back to the bundled checkpoint if the server is unreachable.
 
 ## Checkpoints
 
