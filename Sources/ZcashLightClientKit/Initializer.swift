@@ -467,11 +467,13 @@ public class Initializer {
                         latestBlockHeight - ZcashSDK.maxReorgSize,
                         network.constants.saplingActivationHeight
                     )
-                    var blockID = BlockID()
-                    blockID.height = UInt64(birthdayTreeStateHeight)
+                    let blockID = BlockID(height: UInt64(birthdayTreeStateHeight))
                     if let serverTreeState = try? await lightWalletService.getTreeState(blockID, mode: await sdkFlags.ifTor(.uniqueTor)) {
                         accountTreeState = serverTreeState
-                        self.walletBirthday = birthdayTreeStateHeight
+                        // Not using birthdayTreeStateHeight directly just in case that something is wrong and server returns different height for
+                        // tree state. At 99.9999999% of cases `birthdayTreeStateHeight` and `serverTreeState.height` will be the same. In those
+                        // other cases this makes sure that there is no inconsistency between rust and `self.walletBirthday`.
+                        self.walletBirthday = BlockHeight(serverTreeState.height)
                     }
                 }
             case .existingWallet:
