@@ -450,19 +450,37 @@ public class Initializer {
         // If there are no accounts it must be created, the default amount of accounts is 1
         if let seed, try await rustBackend.listAccounts().isEmpty {
             var chainTip: UInt32?
-            
+            var accountTreeState = checkpoint.treeState()
+
             let sdkFlags = container.resolve(SDKFlags.self)
-            
-            // called when client starts and restore of the wallet is in progress
-            if walletMode == .restoreWallet {
+
+            switch walletMode {
+            case .restoreWallet:
                 if let latestBlockHeight = try? await lightWalletService.latestBlockHeight(mode: await sdkFlags.ifTor(.uniqueTor)) {
                     chainTip = UInt32(latestBlockHeight)
                 }
+            case .newWallet:
+                if let latestBlockHeight = try? await lightWalletService.latestBlockHeight(mode: await sdkFlags.ifTor(.uniqueTor)) {
+                    // Fetch a recent tree state below the reorg horizon so funds intended for the
+                    // wallet can't be missed if the current chain tip is reorganized.
+                    let birthdayTreeStateHeight = max(
+                        latestBlockHeight - ZcashSDK.maxReorgSize,
+                        network.constants.saplingActivationHeight
+                    )
+                    var blockID = BlockID()
+                    blockID.height = UInt64(birthdayTreeStateHeight)
+                    if let serverTreeState = try? await lightWalletService.getTreeState(blockID, mode: await sdkFlags.ifTor(.uniqueTor)) {
+                        accountTreeState = serverTreeState
+                        self.walletBirthday = birthdayTreeStateHeight
+                    }
+                }
+            case .existingWallet:
+                break
             }
-            
+
             _ = try await rustBackend.createAccount(
                 seed: seed,
-                treeState: checkpoint.treeState(),
+                treeState: accountTreeState,
                 recoverUntil: chainTip,
                 name: name,
                 keySource: keySource

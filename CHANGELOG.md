@@ -6,6 +6,9 @@ and this library adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 # Unreleased
 
+## Changed
+- New wallets now use a recent tree state from the lightwalletd server as the wallet birthday, reducing unnecessary block scanning on first launch while retaining reorg safety. Falls back to the bundled checkpoint if the server is unreachable.
+
 # 2.6.0-alpha.5
 
 This release updates from 2.6.0-alpha.4 to fix premature timeouts on UTXO and
