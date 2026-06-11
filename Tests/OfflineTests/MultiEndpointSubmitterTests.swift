@@ -170,4 +170,25 @@ final class MultiEndpointSubmitterTests: ZcashTestCase {
         try? await Task.sleep(nanoseconds: 200_000_000)
         XCTAssertEqual(mock.recordedCancellations().count, 2)
     }
+
+    func testSingleEndpointAcceptanceFinishesWithoutLingeringGrace() async {
+        mock.set(behavior: .succeed, for: endpoint(1))
+
+        let outcome = await submitter.submit(transaction: makeTransaction(), to: [endpoint(1)], timing: fastTiming)
+
+        XCTAssertEqual(outcome, TransactionSubmissionOutcome.accepted(by: endpoint(1)))
+
+        // The lone success completes the race immediately; nothing is left to cancel.
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        XCTAssertTrue(mock.recordedCancellations().isEmpty)
+        XCTAssertEqual(mock.recordedSubmissions().count, 1)
+    }
+
+    func testSingleEndpointRejectionIsRejected() async {
+        mock.set(behavior: .reject(code: -25, message: "bad tx"), for: endpoint(1))
+
+        let outcome = await submitter.submit(transaction: makeTransaction(), to: [endpoint(1)], timing: fastTiming)
+
+        XCTAssertEqual(outcome, TransactionSubmissionOutcome.rejected(code: -25, message: "bad tx"))
+    }
 }

@@ -85,6 +85,12 @@ actor SubmissionRace {
 
     /// Runs the whole race. Returns only when every child task has ended.
     func run() async {
+        logger.debug(
+            """
+            Starting submission race for \(transaction.txId.toHexStringTxId()): \(endpoints.count) endpoint(s), \
+            timeout \(timing.responseTimeout)s, grace \(timing.postAcceptanceGraceDelay)s.
+            """
+        )
         await withTaskGroup(of: Void.self) { group in
             for endpoint in endpoints {
                 group.addTask {
@@ -127,10 +133,10 @@ actor SubmissionRace {
         } catch let TransactionEncoderError.submitError(code, message) {
             submissionRejected(at: endpoint, code: code, message: message)
         } catch is CancellationError {
-            submissionCancelled()
+            submissionCancelled(at: endpoint)
         } catch {
             if Task.isCancelled {
-                submissionCancelled()
+                submissionCancelled(at: endpoint)
             } else {
                 submissionFailed(at: endpoint, error: error)
             }
@@ -156,7 +162,7 @@ actor SubmissionRace {
             resolve(.accepted(by: endpoint))
             startGraceCountdown()
         } else {
-            logger.info("Transaction \(transaction.txId.toHexStringTxId()) also accepted by \(endpoint.host):\(endpoint.port) during the grace window.")
+            logger.info("Transaction \(transaction.txId.toHexStringTxId()) also accepted by \(endpoint.host):\(endpoint.port) in the grace window.")
         }
         finishRaceIfAllCompleted()
     }
@@ -178,7 +184,8 @@ actor SubmissionRace {
         finishRaceIfAllCompleted()
     }
 
-    private func submissionCancelled() {
+    private func submissionCancelled(at endpoint: LightWalletEndpoint) {
+        logger.debug("Transaction \(transaction.txId.toHexStringTxId()) submission to \(endpoint.host):\(endpoint.port) ended by cancellation.")
         completedCount += 1
         // Only external cancellation can end children unresolved: internal
         // cancellation (grace/timeout teardown) happens after a resolution.
@@ -248,7 +255,7 @@ actor SubmissionRace {
     }
 }
 
-extension TimeInterval {
+private extension TimeInterval {
     var nanosecondsClamped: UInt64 {
         guard self > 0 else { return 0 }
         let nanoseconds = self * 1_000_000_000
