@@ -259,3 +259,40 @@ final class StubTransactionEncoder: TransactionEncoder {
 
     func closeDBConnection() { }
 }
+
+final class SubmitPlanStoringMock: SubmitPlanStoring {
+    var plans: [Data: StoredSubmitPlan] = [:]
+    private(set) var deletePlansReceivedTxIds: [[Data]] = []
+    private(set) var clearCallsCount = 0
+
+    func markAwaitingSubmission(txIds: [Data]) async {
+        for txId in txIds where plans[txId] == nil {
+            plans[txId] = StoredSubmitPlan.awaiting
+        }
+    }
+
+    func recordPlan(txId: Data, endpoints: [LightWalletEndpoint]) async {
+        guard !endpoints.isEmpty else { return }
+        plans[txId] = StoredSubmitPlan.ready(endpoints)
+    }
+
+    func plan(for txId: Data) async -> StoredSubmitPlan? {
+        plans[txId]
+    }
+
+    func allPlannedTransactionIds() async -> [Data] {
+        Array(plans.keys)
+    }
+
+    func deletePlans(txIds: [Data]) async {
+        deletePlansReceivedTxIds.append(txIds)
+        for txId in txIds {
+            plans[txId] = nil
+        }
+    }
+
+    func clear() async {
+        clearCallsCount += 1
+        plans.removeAll()
+    }
+}

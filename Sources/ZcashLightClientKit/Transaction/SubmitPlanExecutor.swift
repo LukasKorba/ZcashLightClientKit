@@ -7,6 +7,7 @@ import Foundation
 
 /// Background-retry executor: tries the recorded plan endpoints sequentially
 /// until one accepts. Background retry stays gentle — no fan-out.
+/// An empty endpoint list returns without submitting.
 final class SubmitPlanExecutor {
     private let endpointSubmitter: EndpointSubmitter
     private let logger: Logger
@@ -20,6 +21,7 @@ final class SubmitPlanExecutor {
         var lastError: Error?
 
         for endpoint in endpoints {
+            try Task.checkCancellation()
             do {
                 try await endpointSubmitter.submit(transaction: transaction, to: endpoint)
                 return
