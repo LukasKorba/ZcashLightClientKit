@@ -59,4 +59,30 @@ final class SubmitPlanExecutorTests: ZcashTestCase {
             XCTFail("Expected the LAST error (submitError), got \(error)")
         }
     }
+
+    func testCancellationStopsTryingRemainingEndpoints() async {
+        mock.set(behavior: .hang, for: endpoint(1))
+        mock.set(behavior: .succeed, for: endpoint(2))
+        let executor = self.executor!
+        let transaction = makeTransaction()
+        let endpoints = [endpoint(1), endpoint(2)]
+
+        let task = Task { () -> Error? in
+            do {
+                try await executor.submit(transaction: transaction, endpoints: endpoints)
+                return nil
+            } catch {
+                return error
+            }
+        }
+
+        // Let the first (hanging) submission start, then cancel.
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        task.cancel()
+        let thrown = await task.value
+
+        XCTAssertTrue(thrown is CancellationError, "Expected CancellationError, got \(String(describing: thrown))")
+        // The second endpoint must never be attempted after cancellation.
+        XCTAssertEqual(mock.recordedSubmissions().map(\.host), ["server1.example.com"])
+    }
 }

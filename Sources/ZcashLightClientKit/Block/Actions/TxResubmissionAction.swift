@@ -121,7 +121,7 @@ private extension TxResubmissionAction {
                 staleTxIds.append(txId)
             } catch {
                 // Unknown repository error — keep the plan, try again next pass.
-                logger.warn("TxResubmissionAction could not check plan staleness: \(error)")
+                logger.warn("TxResubmissionAction could not check plan staleness for \(txId.toHexStringTxId()): \(error)")
             }
         }
 

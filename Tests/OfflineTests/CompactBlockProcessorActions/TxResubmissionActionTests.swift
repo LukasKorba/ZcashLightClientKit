@@ -167,4 +167,19 @@ final class TxResubmissionActionTests: ZcashTestCase {
         let remaining = await submitPlanStore.allPlannedTransactionIds()
         XCTAssertTrue(remaining.isEmpty)
     }
+
+    func testUnknownRepositoryErrorKeepsPlanDuringPruning() async throws {
+        struct TransientDatabaseError: Error {}
+        let txId = Data(repeating: 0x0A, count: 32)
+        let action = setupAction(candidates: [])
+        await submitPlanStore.recordPlan(txId: txId, endpoints: [endpointA])
+        transactionRepository.findRawIDClosure = { _ in
+            throw TransientDatabaseError()
+        }
+
+        _ = try await action.run(with: makeContext()) { _ in }
+
+        let remaining = await submitPlanStore.allPlannedTransactionIds()
+        XCTAssertEqual(remaining, [txId], "A transient repository error must not prune a live retry plan")
+    }
 }
