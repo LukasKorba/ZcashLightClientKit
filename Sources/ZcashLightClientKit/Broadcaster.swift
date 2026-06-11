@@ -7,74 +7,86 @@
 
 import Foundation
 
-/// Protocol for creating transactions without immediate submission,
-/// and for submitting raw transaction data to specific endpoints.
+/// Protocol for creating transactions without immediate submission and for
+/// submitting them to one or more lightwalletd endpoints in parallel.
 ///
-/// This separates the concerns of transaction creation and network
-/// submission from the broader synchronization lifecycle managed
-/// by ``Synchronizer``. Use this to implement custom broadcast
-/// strategies such as submitting to multiple lightwalletd servers
-/// in parallel.
+/// This separates transaction creation and network submission from the broader
+/// synchronization lifecycle managed by ``Synchronizer``.
+///
+/// Transactions created through this API wait for the caller to submit them —
+/// the SDK's background resubmission skips them until then. Once submitted,
+/// the endpoint list is recorded as the transaction's retry plan and background
+/// resubmission retries through those endpoints instead of the synchronizer's
+/// default endpoint.
 ///
 /// Typical usage:
 /// ```swift
-/// // 1. Create the transaction(s)
-/// let txs = try await synchronizer.broadcaster.createProposedTransactions(
+/// let transactions = try await synchronizer.broadcaster.createProposedTransactions(
 ///     proposal: proposal, spendingKey: spendingKey
 /// )
-///
-/// // 2. Submit to one or more endpoints
-/// for endpoint in endpoints {
-///     try await synchronizer.broadcaster.submit(txs[0].raw!, to: endpoint)
-/// }
+/// let reports = await synchronizer.broadcaster.submit(
+///     transactions: transactions, to: endpoints
+/// )
 /// ```
 public protocol Broadcaster: AnyObject {
-    /// Creates the transactions in the given proposal without submitting
-    /// them to the network.
+    /// Creates the transactions in the given proposal without submitting them.
     ///
-    /// - Parameter proposal: the proposal for which to create transactions.
-    /// - Parameter spendingKey: the `UnifiedSpendingKey` associated with the
-    ///   account for which the proposal was created.
-    /// - Returns: An array of transaction overviews. Each overview's `raw`
-    ///   property contains the serialized transaction bytes suitable for
-    ///   later submission via ``submit(_:to:)``.
-    ///
-    /// If `prepare()` hasn't already been called since creation of the
-    /// synchronizer instance or since the last wipe then this method throws
-    /// `ZcashError.synchronizerNotPrepared`.
+    /// If `prepare()` hasn't been called since creation of the synchronizer
+    /// instance or since the last wipe, throws `ZcashError.synchronizerNotPrepared`.
     func createProposedTransactions(
         proposal: Proposal,
         spendingKey: UnifiedSpendingKey
-    ) async throws -> [ZcashTransaction.Overview]
+    ) async throws -> [CreatedTransaction]
 
-    /// Finalizes a PCZT that has been separately proven and signed,
-    /// stores it in the wallet, and returns the resulting transactions
-    /// without submitting them to the network.
+    /// Finalizes a PCZT that has been separately proven and signed, stores it
+    /// in the wallet, and returns the resulting transactions without submitting.
     ///
-    /// - Parameter pcztWithProofs: the PCZT with proofs added.
-    /// - Parameter pcztWithSigs: the PCZT with signatures added.
-    /// - Returns: An array of transaction overviews with `raw` bytes.
-    ///
-    /// If `prepare()` hasn't already been called since creation of the
-    /// synchronizer instance or since the last wipe then this method throws
-    /// `ZcashError.synchronizerNotPrepared`.
+    /// If `prepare()` hasn't been called since creation of the synchronizer
+    /// instance or since the last wipe, throws `ZcashError.synchronizerNotPrepared`.
     func createTransactionFromPCZT(
         pcztWithProofs: Pczt,
         pcztWithSigs: Pczt
-    ) async throws -> [ZcashTransaction.Overview]
+    ) async throws -> [CreatedTransaction]
 
-    /// Submits raw transaction bytes to a specific lightwalletd endpoint.
+    /// Submits one transaction to all endpoints in parallel.
     ///
-    /// Creates an ephemeral connection to the given endpoint, submits the
-    /// transaction, and tears down the connection. Respects the current
-    /// Tor configuration.
-    ///
-    /// - Parameter rawTransaction: the raw serialized transaction bytes.
-    /// - Parameter endpoint: the `LightWalletEndpoint` to submit to.
+    /// Returns as soon as the outcome is decided (first acceptance, all
+    /// endpoints failed, or timeout); in-flight submissions continue through
+    /// the grace window in the background. The endpoint list is recorded as
+    /// the transaction's retry plan before any network attempt. An empty
+    /// endpoint list returns `.unreachable` immediately.
     func submit(
-        _ rawTransaction: Data,
-        to endpoint: LightWalletEndpoint
-    ) async throws
+        transaction: CreatedTransaction,
+        to endpoints: [LightWalletEndpoint],
+        timing: SubmissionTiming
+    ) async -> TransactionSubmissionOutcome
+
+    /// Batch convenience: submits sequentially, stops at the first transaction
+    /// that isn't accepted, and marks the remaining ones `.notAttempted`.
+    func submit(
+        transactions: [CreatedTransaction],
+        to endpoints: [LightWalletEndpoint],
+        timing: SubmissionTiming
+    ) async -> [TransactionSubmissionReport]
+}
+
+extension Broadcaster {
+    /// Forwards with `SubmissionTiming.default` (protocol requirements cannot
+    /// declare default arguments).
+    public func submit(
+        transaction: CreatedTransaction,
+        to endpoints: [LightWalletEndpoint]
+    ) async -> TransactionSubmissionOutcome {
+        await submit(transaction: transaction, to: endpoints, timing: SubmissionTiming.default)
+    }
+
+    /// Forwards with `SubmissionTiming.default`.
+    public func submit(
+        transactions: [CreatedTransaction],
+        to endpoints: [LightWalletEndpoint]
+    ) async -> [TransactionSubmissionReport] {
+        await submit(transactions: transactions, to: endpoints, timing: SubmissionTiming.default)
+    }
 }
 
 // MARK: - Multi-endpoint submission types

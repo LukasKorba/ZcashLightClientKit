@@ -202,3 +202,60 @@ final class EndpointSubmitterMock: EndpointSubmitter {
         "\(endpoint.host):\(endpoint.port)"
     }
 }
+
+final class StubTransactionEncoder: TransactionEncoder {
+    private let createdTransactions: [ZcashTransaction.Overview]
+    private(set) var receivedCreateArguments: (proposal: Proposal, spendingKey: UnifiedSpendingKey)?
+    private(set) var receivedFetchTxIds: [Data]?
+    private(set) var submittedTransactions: [EncodedTransaction] = []
+
+    init(createdTransactions: [ZcashTransaction.Overview]) {
+        self.createdTransactions = createdTransactions
+    }
+
+    func proposeTransfer(
+        accountUUID: AccountUUID,
+        recipient: String,
+        amount: Zatoshi,
+        memoBytes: MemoBytes?
+    ) async throws -> Proposal {
+        fatalError("Unused in test")
+    }
+
+    func proposeShielding(
+        accountUUID: AccountUUID,
+        shieldingThreshold: Zatoshi,
+        memoBytes: MemoBytes?,
+        transparentReceiver: String?
+    ) async throws -> Proposal? {
+        fatalError("Unused in test")
+    }
+
+    func createProposedTransactions(
+        proposal: Proposal,
+        spendingKey: UnifiedSpendingKey
+    ) async throws -> [ZcashTransaction.Overview] {
+        receivedCreateArguments = (proposal, spendingKey)
+        return createdTransactions
+    }
+
+    func proposeFulfillingPaymentFromURI(
+        _ uri: String,
+        accountUUID: AccountUUID
+    ) async throws -> Proposal {
+        fatalError("Unused in test")
+    }
+
+    func submit(transaction: EncodedTransaction) async throws {
+        submittedTransactions.append(transaction)
+    }
+
+    func fetchTransactionsForTxIds(_ txIds: [Data]) async throws -> [ZcashTransaction.Overview] {
+        receivedFetchTxIds = txIds
+        return txIds.compactMap { txId in
+            createdTransactions.first { $0.rawID == txId }
+        }
+    }
+
+    func closeDBConnection() { }
+}
