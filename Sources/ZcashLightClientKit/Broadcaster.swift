@@ -76,3 +76,72 @@ public protocol Broadcaster: AnyObject {
         to endpoint: LightWalletEndpoint
     ) async throws
 }
+
+// MARK: - Multi-endpoint submission types
+
+/// A transaction created locally, not yet broadcast to the network.
+public struct CreatedTransaction: Equatable {
+    /// The transaction id (also known as `rawID`).
+    public let txId: Data
+    /// The serialized transaction bytes suitable for submission.
+    public let raw: Data
+    /// The height at which the transaction expires, if known.
+    public let expiryHeight: BlockHeight?
+}
+
+extension CreatedTransaction {
+    /// - Throws: `TransactionEncoderError.notEncoded` when the overview carries no raw bytes.
+    ///   Encoder-created transactions always do; a nil here is an invariant violation.
+    init(overview: ZcashTransaction.Overview) throws {
+        guard let raw = overview.raw else {
+            throw TransactionEncoderError.notEncoded(txId: overview.rawID)
+        }
+        self.txId = overview.rawID
+        self.raw = raw
+        self.expiryHeight = overview.expiryHeight
+    }
+
+    var encodedTransaction: EncodedTransaction {
+        EncodedTransaction(transactionId: txId, raw: raw)
+    }
+}
+
+/// Timing knobs for multi-endpoint submission.
+public struct SubmissionTiming: Equatable {
+    /// How long to wait for the first endpoint decision before declaring timeout.
+    public let responseTimeout: TimeInterval
+    /// After the first acceptance, how long remaining in-flight submissions may
+    /// continue (best-effort propagation) before being cancelled.
+    public let postAcceptanceGraceDelay: TimeInterval
+
+    public static let `default` = SubmissionTiming(responseTimeout: 30, postAcceptanceGraceDelay: 5)
+
+    public init(responseTimeout: TimeInterval, postAcceptanceGraceDelay: TimeInterval) {
+        self.responseTimeout = responseTimeout
+        self.postAcceptanceGraceDelay = postAcceptanceGraceDelay
+    }
+}
+
+/// Per-transaction outcome of a multi-endpoint submission.
+public enum TransactionSubmissionOutcome: Equatable {
+    /// At least one endpoint accepted the transaction.
+    case accepted(by: LightWalletEndpoint)
+    /// Every endpoint responded and none accepted. Carries the first
+    /// lightwalletd rejection (error code + message) that was observed.
+    case rejected(code: Int, message: String)
+    /// Every endpoint failed at the transport level (gRPC/connection error);
+    /// no server-level rejection was observed.
+    case unreachable
+    /// No endpoint produced a decision within `responseTimeout`. The transaction
+    /// may still have been broadcast — treat as pending, not failed.
+    case timedOut
+    /// Skipped because an earlier transaction in the batch was not accepted.
+    case notAttempted
+    /// The submission was cancelled by the caller.
+    case cancelled
+}
+
+public struct TransactionSubmissionReport: Equatable {
+    public let txId: Data
+    public let outcome: TransactionSubmissionOutcome
+}
