@@ -54,7 +54,8 @@ public protocol Broadcaster: AnyObject {
     /// endpoints failed, or timeout); in-flight submissions continue through
     /// the grace window in the background. The endpoint list is recorded as
     /// the transaction's retry plan before any network attempt. An empty
-    /// endpoint list returns `.unreachable` immediately.
+    /// endpoint list returns `.unreachable` immediately and records no retry
+    /// plan — the transaction stays awaiting.
     func submit(
         transaction: CreatedTransaction,
         to endpoints: [LightWalletEndpoint],
@@ -63,6 +64,8 @@ public protocol Broadcaster: AnyObject {
 
     /// Batch convenience: submits sequentially, stops at the first transaction
     /// that isn't accepted, and marks the remaining ones `.notAttempted`.
+    /// Skipped transactions stay awaiting (excluded from background retry)
+    /// until the caller submits them.
     func submit(
         transactions: [CreatedTransaction],
         to endpoints: [LightWalletEndpoint],
@@ -102,9 +105,11 @@ public struct CreatedTransaction: Equatable {
 }
 
 extension CreatedTransaction {
+    /// Builds a submittable transaction from a wallet overview, e.g. to re-submit
+    /// a transaction created in a previous app session. The overview must carry
+    /// raw bytes; overviews returned by transaction-listing APIs do.
     /// - Throws: `TransactionEncoderError.notEncoded` when the overview carries no raw bytes.
-    ///   Encoder-created transactions always do; a nil here is an invariant violation.
-    init(overview: ZcashTransaction.Overview) throws {
+    public init(overview: ZcashTransaction.Overview) throws {
         guard let raw = overview.raw else {
             throw TransactionEncoderError.notEncoded(txId: overview.rawID)
         }

@@ -110,7 +110,7 @@ public class SDKSynchronizer: Synchronizer {
             initializer: initializer,
             logger: logger,
             eventSubject: eventSubject,
-            submitPlanStore: initializer.container.resolve(SubmitPlanStoring.self),
+            submitPlanStore: submitPlanStore,
             multiEndpointSubmitter: initializer.container.resolve(MultiEndpointSubmitter.self),
             statusCheck: { [weak self] in
                 guard let self else {
