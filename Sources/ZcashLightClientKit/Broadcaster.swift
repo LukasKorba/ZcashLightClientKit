@@ -141,6 +141,7 @@ public enum TransactionSubmissionOutcome: Equatable {
     case cancelled
 }
 
+/// Per-transaction result of a batch submission, pairing the transaction id with its outcome.
 public struct TransactionSubmissionReport: Equatable {
     public let txId: Data
     public let outcome: TransactionSubmissionOutcome
