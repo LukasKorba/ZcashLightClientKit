@@ -101,8 +101,12 @@ final class MultiEndpointSubmitterTests: ZcashTestCase {
         // Caller resumes at the first acceptance — long before the 1s timeout.
         XCTAssertLessThan(elapsed, 0.25)
 
+        // Still inside the 0.3s grace window: the straggler must not be cancelled yet.
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertTrue(mock.recordedCancellations().isEmpty, "Straggler must keep running through the grace window")
+
         // The hanging straggler gets cancelled once the grace window ends.
-        try? await Task.sleep(nanoseconds: 700_000_000)
+        try? await Task.sleep(nanoseconds: 600_000_000)
         XCTAssertEqual(mock.recordedCancellations().map(\.host), [endpoint(2).host])
     }
 

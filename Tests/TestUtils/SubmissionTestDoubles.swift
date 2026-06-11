@@ -174,7 +174,12 @@ final class EndpointSubmitterMock: EndpointSubmitter {
             return
 
         case .succeedAfter(let delay):
-            try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            do {
+                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            } catch is CancellationError {
+                queue.sync { cancelled.append(endpoint) }
+                throw CancellationError()
+            }
 
         case let .reject(code, message):
             throw TransactionEncoderError.submitError(code: code, message: message)
