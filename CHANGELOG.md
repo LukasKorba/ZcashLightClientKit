@@ -8,6 +8,10 @@ and this library adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Changed
 - New wallets now use a recent tree state from the lightwalletd server as the wallet birthday, reducing unnecessary block scanning on first launch while retaining reorg safety. Falls back to the bundled checkpoint if the server is unreachable.
+- `Broadcaster` has been redesigned for multi-server submission (breaking change to the 2.6.0-alpha API; see MIGRATING.md):
+  - `createProposedTransactions` / `createTransactionFromPCZT` now return `[CreatedTransaction]` (with non-optional raw bytes) instead of `[ZcashTransaction.Overview]`.
+  - `submit(_:to:)` (raw bytes, single endpoint) has been replaced by `submit(transaction:to:timing:)` which submits to multiple endpoints in parallel — first acceptance wins, remaining submissions get a grace window — and returns a `TransactionSubmissionOutcome` instead of throwing. A batch variant `submit(transactions:to:timing:)` submits sequentially and stops at the first transaction that isn't accepted.
+  - The endpoints used for submission are recorded as the transaction's retry plan (persisted in the SDK's general storage). Background resubmission retries pending transactions through their recorded endpoints, skips transactions created through `Broadcaster` that were never submitted, and keeps the default-endpoint behavior for everything else.
 
 ## Fixed
 - `Synchronizer.submitTransactions` now verifies submit failures against the server before surfacing them: when the submit RPC returns a non-zero error code, the SDK immediately asks the same lightwalletd whether the tx is known via `GetTransaction`, and reclassifies the result as `TransactionSubmitResult.success` if the server reports the tx is in mempool or chain. This covers the cases that previously produced misleading failure UIs — Zebra's `MempoolError::InMempool` / `AlreadyQueued`, zcashd's `RPC_VERIFY_ALREADY_IN_CHAIN`, and any future "already known" variant we don't recognise — without depending on backend-specific error codes or message text.
