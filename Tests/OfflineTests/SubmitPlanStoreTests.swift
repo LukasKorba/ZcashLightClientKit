@@ -155,4 +155,21 @@ final class SubmitPlanStoreTests: ZcashTestCase {
         let txIds = await store.allPlannedTransactionIds()
         XCTAssertTrue(txIds.isEmpty)
     }
+
+    func testStoreCreatesMissingParentDirectory() async {
+        // Fresh installs / aliased synchronizers start without the general
+        // storage directory; the store must create it rather than latch into
+        // its disabled state.
+        let nestedURL = testGeneralStorageDirectory
+            .appendingPathComponent("not-yet-created")
+            .appendingPathComponent("submit_plans_test.db")
+        let store = SubmitPlanStore(databaseURL: nestedURL, logger: NullLogger())
+        let txId = Data(repeating: 0x0E, count: 32)
+
+        await store.markAwaitingSubmission(txIds: [txId])
+
+        let plan = await store.plan(for: txId)
+        XCTAssertEqual(plan, StoredSubmitPlan.awaiting)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: nestedURL.path))
+    }
 }

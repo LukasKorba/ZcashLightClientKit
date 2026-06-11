@@ -142,6 +142,14 @@ actor SubmitPlanStore: SubmitPlanStoring {
         guard !connectionFailed else { return nil }
 
         do {
+            let directoryURL = databaseURL.deletingLastPathComponent()
+            try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+
+            var resourceValues = URLResourceValues()
+            resourceValues.isExcludedFromBackup = true
+            var mutableDirectoryURL = directoryURL
+            try mutableDirectoryURL.setResourceValues(resourceValues)
+
             let connection = try Connection(databaseURL.path)
             try connection.run(table.create(ifNotExists: true) { builder in
                 builder.column(txIdColumn, primaryKey: true)
