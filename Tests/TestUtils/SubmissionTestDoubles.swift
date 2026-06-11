@@ -135,3 +135,65 @@ final class RecordingCompactTxStreamerService: CompactTxStreamerProvider {
         eventLoop.makeSucceededFuture(GRPCStatus(code: .unimplemented, message: "Unused in test"))
     }
 }
+
+final class EndpointSubmitterMock: EndpointSubmitter {
+    enum Behavior {
+        case succeed
+        case succeedAfter(TimeInterval)
+        case reject(code: Int, message: String)
+        case failTransport
+        /// Sleeps ~10s; only ends via cancellation. Records the cancellation.
+        case hang
+    }
+
+    struct MockTransportError: Error {}
+
+    private let queue = DispatchQueue(label: "EndpointSubmitterMock")
+    private var behaviors: [String: Behavior] = [:]
+    private var submitted: [LightWalletEndpoint] = []
+    private var cancelled: [LightWalletEndpoint] = []
+
+    func set(behavior: Behavior, for endpoint: LightWalletEndpoint) {
+        queue.sync { behaviors[Self.key(endpoint)] = behavior }
+    }
+
+    func recordedSubmissions() -> [LightWalletEndpoint] {
+        queue.sync { submitted }
+    }
+
+    func recordedCancellations() -> [LightWalletEndpoint] {
+        queue.sync { cancelled }
+    }
+
+    func submit(transaction: CreatedTransaction, to endpoint: LightWalletEndpoint) async throws {
+        queue.sync { submitted.append(endpoint) }
+        let behavior = queue.sync { behaviors[Self.key(endpoint)] } ?? Behavior.succeed
+
+        switch behavior {
+        case .succeed:
+            return
+
+        case .succeedAfter(let delay):
+            try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+
+        case let .reject(code, message):
+            throw TransactionEncoderError.submitError(code: code, message: message)
+
+        case .failTransport:
+            throw MockTransportError()
+
+        case .hang:
+            do {
+                try await Task.sleep(nanoseconds: 10_000_000_000)
+                throw MockTransportError()
+            } catch is CancellationError {
+                queue.sync { cancelled.append(endpoint) }
+                throw CancellationError()
+            }
+        }
+    }
+
+    private static func key(_ endpoint: LightWalletEndpoint) -> String {
+        "\(endpoint.host):\(endpoint.port)"
+    }
+}
