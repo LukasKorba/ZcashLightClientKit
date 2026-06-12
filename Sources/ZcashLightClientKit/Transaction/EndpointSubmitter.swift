@@ -23,14 +23,21 @@ final class GRPCEndpointSubmitter: EndpointSubmitter {
     }
 
     func submit(transaction: CreatedTransaction, to endpoint: LightWalletEndpoint) async throws {
-        let service = LightWalletGRPCServiceOverTor(endpoint: endpoint, tor: torClient)
-
         let mode: ServiceMode
+        let serviceTorClient: TorClient
         if await sdkFlags.torEnabled {
+            // One isolated Tor client per submission attempt: connecting
+            // through the shared TorClient serializes every endpoint behind
+            // one blocking FFI call on its actor, so a single stalled endpoint
+            // would starve the whole multi-endpoint race.
+            serviceTorClient = try await torClient.isolatedClient()
             mode = ServiceMode.txIdGroup(prefix: "submit", txId: transaction.txId)
         } else {
+            serviceTorClient = torClient
             mode = ServiceMode.direct
         }
+
+        let service = LightWalletGRPCServiceOverTor(endpoint: endpoint, tor: serviceTorClient)
 
         let response: LightWalletServiceResponse
         do {

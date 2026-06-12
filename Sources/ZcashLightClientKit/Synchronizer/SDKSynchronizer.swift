@@ -781,7 +781,7 @@ public class SDKSynchronizer: Synchronizer {
                 },
                 completion: { [weak self] possibleError in
                     if possibleError == nil {
-                        await self?.submitPlanStore.clear()
+                        await self?.submitPlanStore.wipe()
                     }
                     await self?.updateStatus(.unprepared)
                     if let error = possibleError {

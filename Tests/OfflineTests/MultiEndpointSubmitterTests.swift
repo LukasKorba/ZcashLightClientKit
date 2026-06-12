@@ -92,35 +92,41 @@ final class MultiEndpointSubmitterTests: ZcashTestCase {
         let endpoints = [endpoint(1), endpoint(2)]
         mock.set(behavior: .succeed, for: endpoint(1))
         mock.set(behavior: .hang, for: endpoint(2))
+        // Generous margins: these asserts compare wall-clock times and must
+        // survive multi-hundred-millisecond stalls on loaded CI machines.
+        let timing = SubmissionTiming(responseTimeout: 5.0, postAcceptanceGraceDelay: 1.5)
 
         let start = Date()
-        let outcome = await submitter.submit(transaction: makeTransaction(), to: endpoints, timing: fastTiming)
+        let outcome = await submitter.submit(transaction: makeTransaction(), to: endpoints, timing: timing)
         let elapsed = Date().timeIntervalSince(start)
 
         XCTAssertEqual(outcome, TransactionSubmissionOutcome.accepted(by: endpoint(1)))
-        // Caller resumes at the first acceptance — long before the 1s timeout.
-        XCTAssertLessThan(elapsed, 0.25)
+        // Caller resumes at the first acceptance — well before the 5s timeout.
+        XCTAssertLessThan(elapsed, 1.0)
 
-        // Still inside the 0.3s grace window: the straggler must not be cancelled yet.
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        // Still inside the 1.5s grace window: the straggler must not be cancelled yet.
+        try? await Task.sleep(nanoseconds: 200_000_000)
         XCTAssertTrue(mock.recordedCancellations().isEmpty, "Straggler must keep running through the grace window")
 
         // The hanging straggler gets cancelled once the grace window ends.
-        try? await Task.sleep(nanoseconds: 600_000_000)
+        try? await Task.sleep(nanoseconds: 2_300_000_000)
         XCTAssertEqual(mock.recordedCancellations().map(\.host), [endpoint(2).host])
     }
 
     func testStragglerSuccessDuringGraceIsAllowedToFinish() async {
         let endpoints = [endpoint(1), endpoint(2)]
         mock.set(behavior: .succeed, for: endpoint(1))
-        mock.set(behavior: .succeedAfter(0.1), for: endpoint(2))
+        mock.set(behavior: .succeedAfter(0.2), for: endpoint(2))
+        // The straggler finishes at ~0.2s, far inside the 1.5s grace window
+        // even with CI scheduling stalls.
+        let timing = SubmissionTiming(responseTimeout: 5.0, postAcceptanceGraceDelay: 1.5)
 
-        let outcome = await submitter.submit(transaction: makeTransaction(), to: endpoints, timing: fastTiming)
+        let outcome = await submitter.submit(transaction: makeTransaction(), to: endpoints, timing: timing)
 
         XCTAssertEqual(outcome, TransactionSubmissionOutcome.accepted(by: endpoint(1)))
 
         // Wait past the straggler's completion; it must not have been cancelled.
-        try? await Task.sleep(nanoseconds: 500_000_000)
+        try? await Task.sleep(nanoseconds: 700_000_000)
         XCTAssertTrue(mock.recordedCancellations().isEmpty)
     }
 
@@ -169,6 +175,49 @@ final class MultiEndpointSubmitterTests: ZcashTestCase {
 
         try? await Task.sleep(nanoseconds: 200_000_000)
         XCTAssertEqual(mock.recordedCancellations().count, 2)
+    }
+
+    func testCallerCancellationReleasesCallerWhileChildIgnoresCancellation() async {
+        // Simulates the Tor path: the child sits in blocking FFI that ignores
+        // task cancellation. The caller must still be released at cancellation
+        // time, not when the stuck child finally returns (3s) and not at the
+        // response timeout (5s).
+        mock.set(behavior: .hangUncancellable(3.0), for: endpoint(1))
+        let transaction = makeTransaction()
+        let timing = SubmissionTiming(responseTimeout: 5.0, postAcceptanceGraceDelay: 0.1)
+        let submitter = self.submitter!
+
+        let start = Date()
+        let task = Task { () -> TransactionSubmissionOutcome in
+            await submitter.submit(transaction: transaction, to: [endpoint(1)], timing: timing)
+        }
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        task.cancel()
+        let outcome = await task.value
+        let elapsed = Date().timeIntervalSince(start)
+
+        XCTAssertEqual(outcome, TransactionSubmissionOutcome.cancelled)
+        XCTAssertLessThan(elapsed, 1.5)
+    }
+
+    func testLateRejectionAfterCancellationStaysCancelled() async {
+        // A rejection already in flight when the caller cancels must not
+        // replace the `.cancelled` outcome, regardless of arrival order.
+        let endpoints = [endpoint(1), endpoint(2)]
+        mock.set(behavior: .rejectAfter(0.4, code: -25, message: "late"), for: endpoint(1))
+        mock.set(behavior: .hangUncancellable(2.0), for: endpoint(2))
+        let transaction = makeTransaction()
+        let timing = SubmissionTiming(responseTimeout: 5.0, postAcceptanceGraceDelay: 0.1)
+        let submitter = self.submitter!
+
+        let task = Task { () -> TransactionSubmissionOutcome in
+            await submitter.submit(transaction: transaction, to: endpoints, timing: timing)
+        }
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        task.cancel()
+        let outcome = await task.value
+
+        XCTAssertEqual(outcome, TransactionSubmissionOutcome.cancelled)
     }
 
     func testSingleEndpointAcceptanceFinishesWithoutLingeringGrace() async {

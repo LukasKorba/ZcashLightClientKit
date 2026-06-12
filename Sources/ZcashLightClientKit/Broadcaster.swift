@@ -53,9 +53,13 @@ public protocol Broadcaster: AnyObject {
     /// Returns as soon as the outcome is decided (first acceptance, all
     /// endpoints failed, or timeout); in-flight submissions continue through
     /// the grace window in the background. The endpoint list is recorded as
-    /// the transaction's retry plan before any network attempt. An empty
+    /// the transaction's retry plan before any network attempt, and the plan
+    /// stays recorded even when the call is cancelled or times out. An empty
     /// endpoint list returns `.unreachable` immediately and records no retry
     /// plan — the transaction stays awaiting.
+    ///
+    /// If the surrounding task is cancelled, the call returns `.cancelled`
+    /// promptly while in-flight submissions wind down in the background.
     func submit(
         transaction: CreatedTransaction,
         to endpoints: [LightWalletEndpoint],
@@ -102,6 +106,14 @@ public struct CreatedTransaction: Equatable {
     public let raw: Data
     /// The height at which the transaction expires, if known.
     public let expiryHeight: BlockHeight?
+
+    /// Memberwise initializer, public so custom `Broadcaster` conformers
+    /// (mocks, stubs, alternate transports) can construct return values.
+    public init(txId: Data, raw: Data, expiryHeight: BlockHeight?) {
+        self.txId = txId
+        self.raw = raw
+        self.expiryHeight = expiryHeight
+    }
 }
 
 extension CreatedTransaction {
@@ -149,12 +161,17 @@ public enum TransactionSubmissionOutcome: Equatable {
     /// Every endpoint failed at the transport level (gRPC/connection error);
     /// no server-level rejection was observed.
     case unreachable
-    /// No endpoint produced a decision within `responseTimeout`. The transaction
-    /// may still have been broadcast — treat as pending, not failed.
+    /// No clear decision within `responseTimeout`: at least one endpoint had
+    /// not responded when the timer fired (others may have rejected or failed
+    /// in the meantime — details are logged). The transaction may still have
+    /// been broadcast — treat as pending, not failed.
     case timedOut
     /// Skipped because an earlier transaction in the batch was not accepted.
     case notAttempted
-    /// The submission was cancelled by the caller.
+    /// The submission was cancelled by the caller. The retry plan recorded
+    /// before the attempt stays in place, so background resubmission can still
+    /// broadcast the transaction later — treat as "outcome unknown", not as
+    /// "not sent".
     case cancelled
 }
 
@@ -162,4 +179,11 @@ public enum TransactionSubmissionOutcome: Equatable {
 public struct TransactionSubmissionReport: Equatable {
     public let txId: Data
     public let outcome: TransactionSubmissionOutcome
+
+    /// Memberwise initializer, public so custom `Broadcaster` conformers
+    /// (mocks, stubs, alternate transports) can construct return values.
+    public init(txId: Data, outcome: TransactionSubmissionOutcome) {
+        self.txId = txId
+        self.outcome = outcome
+    }
 }

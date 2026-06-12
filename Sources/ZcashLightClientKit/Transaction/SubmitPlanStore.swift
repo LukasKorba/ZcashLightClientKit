@@ -13,23 +13,34 @@ enum StoredSubmitPlan: Equatable {
     case awaiting
     /// Submitted to these endpoints; resubmission retries through them.
     case ready([LightWalletEndpoint])
+    /// The store cannot be read, so whether a plan exists is unknown.
+    /// Resubmission must skip the transaction: auto-submitting something the
+    /// app may never have released is worse than delaying a retry.
+    case storeUnavailable
 }
 
 protocol SubmitPlanStoring {
     func markAwaitingSubmission(txIds: [Data]) async
     func recordPlan(txId: Data, endpoints: [LightWalletEndpoint]) async
-    /// `nil` means no row — a legacy transaction unknown to this store.
+    /// `nil` means the store was read successfully and has no row — a legacy
+    /// transaction unknown to this store. Read failures return
+    /// `.storeUnavailable`, never `nil`.
     func plan(for txId: Data) async -> StoredSubmitPlan?
     func allPlannedTransactionIds() async -> [Data]
     func deletePlans(txIds: [Data]) async
     func clear() async
+    /// Deletes the backing database file and resets the store so it can start
+    /// fresh. Part of `Synchronizer.wipe()`.
+    func wipe() async
 }
 
 /// SQLite-backed store for per-transaction submit plans.
 ///
-/// All operations are best-effort: I/O failures are logged and swallowed so a
-/// persistence problem can never fail a send. A transaction whose row is lost
-/// simply retries through the legacy default-endpoint path.
+/// Writes are best-effort: I/O failures are logged and swallowed so a
+/// persistence problem can never fail a send. Reads fail safe: when the store
+/// cannot be opened or read, lookups report `.storeUnavailable` so background
+/// resubmission skips the affected transactions instead of falling back to an
+/// endpoint the user didn't choose.
 actor SubmitPlanStore: SubmitPlanStoring {
     private let databaseURL: URL
     private let logger: Logger
@@ -58,7 +69,14 @@ actor SubmitPlanStore: SubmitPlanStoring {
                 try connection.run(insert)
             }
         } catch {
-            logger.warn("SubmitPlanStore failed to mark transactions awaiting submission: \(error)")
+            // The awaiting mark is what keeps background resubmission away
+            // from transactions the app never submitted. If it cannot be
+            // written, fail the store closed for this session so lookups
+            // report `.storeUnavailable` instead of `nil` (legacy) for the
+            // unmarked transactions.
+            cachedConnection = nil
+            connectionFailed = true
+            logger.warn("SubmitPlanStore failed to mark transactions awaiting submission; disabling the store: \(error)")
         }
     }
 
@@ -81,7 +99,7 @@ actor SubmitPlanStore: SubmitPlanStoring {
     }
 
     func plan(for txId: Data) -> StoredSubmitPlan? {
-        guard let connection = connection() else { return nil }
+        guard let connection = connection() else { return .storeUnavailable }
         do {
             let query = table.filter(txIdColumn == Blob(bytes: txId.bytes))
             guard let row = try connection.pluck(query) else { return nil }
@@ -100,7 +118,7 @@ actor SubmitPlanStore: SubmitPlanStoring {
             return storedEndpoints.isEmpty ? .awaiting : .ready(storedEndpoints.map(\.endpoint))
         } catch {
             logger.warn("SubmitPlanStore failed to load submit plan: \(error)")
-            return nil
+            return .storeUnavailable
         }
     }
 
@@ -137,6 +155,22 @@ actor SubmitPlanStore: SubmitPlanStoring {
         }
     }
 
+    func wipe() {
+        // Drop the connection first so the file handle is closed, then remove
+        // the file itself: row deletion alone would leave transaction ids and
+        // endpoints recoverable from SQLite free pages after a wallet wipe.
+        cachedConnection = nil
+        connectionFailed = false
+        guard FileManager.default.fileExists(atPath: databaseURL.path) else { return }
+        do {
+            try FileManager.default.removeItem(at: databaseURL)
+        } catch {
+            logger.warn("SubmitPlanStore failed to delete its database file: \(error)")
+        }
+    }
+
+    private static let schemaVersion: Int64 = 1
+
     private func connection() -> Connection? {
         if let cachedConnection { return cachedConnection }
         guard !connectionFailed else { return nil }
@@ -151,10 +185,26 @@ actor SubmitPlanStore: SubmitPlanStoring {
             try mutableDirectoryURL.setResourceValues(resourceValues)
 
             let connection = try Connection(databaseURL.path)
+
+            let schemaVersion = try connection.scalar("PRAGMA user_version") as? Int64 ?? 0
+            guard schemaVersion <= Self.schemaVersion else {
+                // Written by a newer SDK; don't touch it (a downgraded SDK
+                // misreading rows could resurrect the legacy fallback).
+                connectionFailed = true
+                logger.warn(
+                    "SubmitPlanStore database schema \(schemaVersion) is newer than the supported \(Self.schemaVersion); submit plans are disabled."
+                )
+                return nil
+            }
+
             try connection.run(table.create(ifNotExists: true) { builder in
                 builder.column(txIdColumn, primaryKey: true)
                 builder.column(endpointsColumn, defaultValue: "[]")
             })
+            if schemaVersion < Self.schemaVersion {
+                try connection.run("PRAGMA user_version = \(Self.schemaVersion)")
+            }
+
             cachedConnection = connection
             return connection
         } catch {

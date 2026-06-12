@@ -140,7 +140,7 @@ final class SubmitPlanStoreTests: ZcashTestCase {
         XCTAssertEqual(plan, StoredSubmitPlan.awaiting)
     }
 
-    func testUnopenableDatabaseDegradesToNoOp() async {
+    func testUnopenableDatabaseReportsStoreUnavailable() async {
         // A directory at the database path makes SQLite open fail.
         let blockedURL = testGeneralStorageDirectory.appendingPathComponent("blocked.db")
         try? FileManager.default.createDirectory(at: blockedURL, withIntermediateDirectories: true)
@@ -150,10 +150,44 @@ final class SubmitPlanStoreTests: ZcashTestCase {
         await store.markAwaitingSubmission(txIds: [txId])
         await store.recordPlan(txId: txId, endpoints: [endpointA])
 
+        // Reads must fail safe: `nil` would mean "legacy transaction" and
+        // re-enable the default-endpoint auto-submit fallback.
         let plan = await store.plan(for: txId)
-        XCTAssertNil(plan)
+        XCTAssertEqual(plan, StoredSubmitPlan.storeUnavailable)
         let txIds = await store.allPlannedTransactionIds()
         XCTAssertTrue(txIds.isEmpty)
+    }
+
+    func testWipeDeletesDatabaseFileAndStoreRestartsFresh() async {
+        let txId = Data(repeating: 0x0F, count: 32)
+        let store = makeStore()
+        await store.recordPlan(txId: txId, endpoints: [endpointA])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: databaseURL.path))
+
+        await store.wipe()
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: databaseURL.path))
+        let plan = await store.plan(for: txId)
+        XCTAssertNil(plan, "A wiped store must start from scratch, not report unavailable")
+    }
+
+    func testFreshDatabaseIsStampedWithSchemaVersion() async throws {
+        let store = makeStore()
+        await store.markAwaitingSubmission(txIds: [Data(repeating: 0x10, count: 32)])
+
+        let connection = try Connection(databaseURL.path)
+        let version = try connection.scalar("PRAGMA user_version") as? Int64
+        XCTAssertEqual(version, 1)
+    }
+
+    func testNewerSchemaDisablesStore() async throws {
+        // Simulate a database written by a future SDK version.
+        let connection = try Connection(databaseURL.path)
+        try connection.run("PRAGMA user_version = 99")
+
+        let store = makeStore()
+        let plan = await store.plan(for: Data(repeating: 0x11, count: 32))
+        XCTAssertEqual(plan, StoredSubmitPlan.storeUnavailable)
     }
 
     func testStoreCreatesMissingParentDirectory() async {

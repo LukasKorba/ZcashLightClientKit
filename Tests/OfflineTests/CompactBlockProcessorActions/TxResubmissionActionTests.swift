@@ -118,26 +118,31 @@ final class TxResubmissionActionTests: ZcashTestCase {
         XCTAssertTrue(endpointSubmitter.recordedSubmissions().isEmpty)
     }
 
-    func testPruningRemovesMinedExpiredMissingAndNilExpiryPlans() async throws {
-        let minedTxId = Data(repeating: 0x04, count: 32)
+    func testPruningRemovesExpiredMissingAndNilExpiryPlansButKeepsMinedUntilExpiry() async throws {
+        let minedUnexpiredTxId = Data(repeating: 0x04, count: 32)
         let expiredTxId = Data(repeating: 0x05, count: 32)
+        let minedExpiredTxId = Data(repeating: 0x0B, count: 32)
         let missingTxId = Data(repeating: 0x06, count: 32)
         let nilExpiryTxId = Data(repeating: 0x08, count: 32)
         let aliveTxId = Data(repeating: 0x07, count: 32)
 
         let action = setupAction(candidates: [])
-        await submitPlanStore.recordPlan(txId: minedTxId, endpoints: [endpointA])
+        await submitPlanStore.recordPlan(txId: minedUnexpiredTxId, endpoints: [endpointA])
         await submitPlanStore.recordPlan(txId: expiredTxId, endpoints: [endpointA])
+        await submitPlanStore.recordPlan(txId: minedExpiredTxId, endpoints: [endpointA])
         await submitPlanStore.recordPlan(txId: missingTxId, endpoints: [endpointA])
         await submitPlanStore.recordPlan(txId: nilExpiryTxId, endpoints: [endpointA])
         await submitPlanStore.recordPlan(txId: aliveTxId, endpoints: [endpointA])
 
         transactionRepository.findRawIDClosure = { rawID in
-            if rawID == minedTxId {
+            if rawID == minedUnexpiredTxId {
                 return self.makeOverview(rawID: rawID, minedHeight: 1_999_000)
             }
             if rawID == expiredTxId {
                 return self.makeOverview(rawID: rawID, expiryHeight: 1_999_999)
+            }
+            if rawID == minedExpiredTxId {
+                return self.makeOverview(rawID: rawID, minedHeight: 1_999_000, expiryHeight: 1_999_999)
             }
             if rawID == missingTxId {
                 throw ZcashError.transactionRepositoryEntityNotFound
@@ -151,7 +156,46 @@ final class TxResubmissionActionTests: ZcashTestCase {
         _ = try await action.run(with: makeContext()) { _ in }
 
         let remaining = await submitPlanStore.allPlannedTransactionIds()
-        XCTAssertEqual(Set(remaining), Set([aliveTxId]))
+        // The mined-but-unexpired plan survives: a reorg could un-mine the
+        // transaction, and its retries must still use the recorded endpoints.
+        XCTAssertEqual(Set(remaining), Set([aliveTxId, minedUnexpiredTxId]))
+    }
+
+    func testStoreUnavailableSkipsResubmission() async throws {
+        let rawID = Data(repeating: 0x0C, count: 32)
+        let candidate = makeOverview(rawID: rawID)
+        let action = setupAction(candidates: [candidate])
+        submitPlanStore.storeUnavailable = true
+        transactionRepository.findRawIDClosure = { _ in candidate }
+
+        _ = try await action.run(with: makeContext()) { _ in }
+
+        XCTAssertTrue(
+            transactionEncoder.submittedTransactions.isEmpty,
+            "An unreadable plan store must not fall back to the default-endpoint submit"
+        )
+        XCTAssertTrue(endpointSubmitter.recordedSubmissions().isEmpty)
+    }
+
+    func testOneFailingPlanDoesNotStarveOtherCandidates() async throws {
+        let planTxId = Data(repeating: 0x0D, count: 32)
+        let legacyTxId = Data(repeating: 0x0E, count: 32)
+        let planCandidate = makeOverview(rawID: planTxId)
+        let legacyCandidate = makeOverview(rawID: legacyTxId)
+        let action = setupAction(candidates: [planCandidate, legacyCandidate])
+        await submitPlanStore.recordPlan(txId: planTxId, endpoints: [endpointA])
+        endpointSubmitter.set(behavior: .failTransport, for: endpointA)
+        transactionRepository.findRawIDClosure = { rawID in
+            rawID == planTxId ? planCandidate : legacyCandidate
+        }
+
+        _ = try await action.run(with: makeContext()) { _ in }
+
+        XCTAssertEqual(
+            transactionEncoder.submittedTransactions.map(\.transactionId),
+            [legacyTxId],
+            "A failing plan retry must not abort resubmission of the remaining candidates"
+        )
     }
 
     func testNoCandidatesStillPrunes() async throws {

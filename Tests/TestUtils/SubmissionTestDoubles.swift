@@ -141,9 +141,15 @@ final class EndpointSubmitterMock: EndpointSubmitter {
         case succeed
         case succeedAfter(TimeInterval)
         case reject(code: Int, message: String)
+        /// Rejects after the delay; an early cancellation shortens the delay
+        /// but the rejection is still thrown (a response already in flight).
+        case rejectAfter(TimeInterval, code: Int, message: String)
         case failTransport
         /// Sleeps ~10s; only ends via cancellation. Records the cancellation.
         case hang
+        /// Ignores task cancellation for the given duration, then fails with a
+        /// transport error — simulates work stuck in non-cancellable FFI.
+        case hangUncancellable(TimeInterval)
     }
 
     struct MockTransportError: Error {}
@@ -184,7 +190,18 @@ final class EndpointSubmitterMock: EndpointSubmitter {
         case let .reject(code, message):
             throw TransactionEncoderError.submitError(code: code, message: message)
 
+        case let .rejectAfter(delay, code, message):
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            throw TransactionEncoderError.submitError(code: code, message: message)
+
         case .failTransport:
+            throw MockTransportError()
+
+        case .hangUncancellable(let duration):
+            let deadline = Date().addingTimeInterval(duration)
+            while Date() < deadline {
+                try? await Task.sleep(nanoseconds: 50_000_000)
+            }
             throw MockTransportError()
 
         case .hang:
@@ -262,8 +279,12 @@ final class StubTransactionEncoder: TransactionEncoder {
 
 final class SubmitPlanStoringMock: SubmitPlanStoring {
     var plans: [Data: StoredSubmitPlan] = [:]
+    /// When true, lookups behave like a broken store: `plan(for:)` reports
+    /// `.storeUnavailable` and `allPlannedTransactionIds()` is empty.
+    var storeUnavailable = false
     private(set) var deletePlansReceivedTxIds: [[Data]] = []
     private(set) var clearCallsCount = 0
+    private(set) var wipeCallsCount = 0
 
     func markAwaitingSubmission(txIds: [Data]) async {
         for txId in txIds where plans[txId] == nil {
@@ -277,11 +298,13 @@ final class SubmitPlanStoringMock: SubmitPlanStoring {
     }
 
     func plan(for txId: Data) async -> StoredSubmitPlan? {
-        plans[txId]
+        guard !storeUnavailable else { return .storeUnavailable }
+        return plans[txId]
     }
 
     func allPlannedTransactionIds() async -> [Data] {
-        Array(plans.keys)
+        guard !storeUnavailable else { return [] }
+        return Array(plans.keys)
     }
 
     func deletePlans(txIds: [Data]) async {
@@ -294,5 +317,11 @@ final class SubmitPlanStoringMock: SubmitPlanStoring {
     func clear() async {
         clearCallsCount += 1
         plans.removeAll()
+    }
+
+    func wipe() async {
+        wipeCallsCount += 1
+        plans.removeAll()
+        storeUnavailable = false
     }
 }

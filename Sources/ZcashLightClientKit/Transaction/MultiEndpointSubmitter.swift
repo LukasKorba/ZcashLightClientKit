@@ -8,8 +8,8 @@ import Foundation
 /// Races one transaction against multiple endpoints in parallel.
 ///
 /// Resumes the caller as soon as the outcome is decided (first acceptance, all
-/// endpoints failed, or timeout); in-flight submissions continue through the
-/// grace window in the background before being cancelled.
+/// endpoints failed, timeout, or caller cancellation); in-flight submissions
+/// continue through the grace window in the background before being cancelled.
 final class MultiEndpointSubmitter {
     private let endpointSubmitter: EndpointSubmitter
     private let logger: Logger
@@ -47,6 +47,14 @@ final class MultiEndpointSubmitter {
             await race.outcome()
         } onCancel: {
             worker.cancel()
+            // Release the caller right away: children stuck in work that
+            // ignores task cancellation (e.g. blocking FFI on the Tor path)
+            // must not delay the `.cancelled` resolution — and a straggler's
+            // late rejection must not replace it. The race keeps winding down
+            // inside the worker task.
+            Task {
+                await race.callerCancelled()
+            }
         }
     }
 }
@@ -109,6 +117,14 @@ actor SubmissionRace {
         graceTask?.cancel()
         // Safety net: if nothing resolved (every child ended via cancellation
         // before reporting), the caller must still be released.
+        resolve(.cancelled)
+    }
+
+    /// External cancellation: resolves `.cancelled` immediately (unless an
+    /// outcome already won) so the caller is released even while children sit
+    /// in non-cancellable work, and so a straggler's later rejection or
+    /// failure cannot win over the cancellation.
+    func callerCancelled() {
         resolve(.cancelled)
     }
 

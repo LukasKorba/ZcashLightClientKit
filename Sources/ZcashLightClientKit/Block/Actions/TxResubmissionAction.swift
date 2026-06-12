@@ -34,10 +34,13 @@ extension TxResubmissionAction: Action {
     func run(with context: ActionContext, didUpdate: @escaping (CompactBlockProcessor.Event) async -> Void) async throws -> ActionContext {
         let latestBlockHeight = await context.syncControlData.latestBlockHeight
 
-        // Plans whose transactions are mined, expired, or gone are no longer
-        // retry candidates; drop them. Decisions are made per transaction from
-        // current repository state, so a transaction created mid-pass can never
-        // be wrongly pruned (it is by definition present, unmined, unexpired).
+        // Plans whose transactions are expired or gone are no longer retry
+        // candidates; drop them. Mined transactions keep their plans until
+        // expiry so a reorg that un-mines one still retries through its
+        // recorded endpoints — findForResubmission excludes mined transactions,
+        // so a retained plan costs nothing meanwhile. Decisions are made per
+        // transaction from current repository state, so a transaction created
+        // mid-pass can never be wrongly pruned.
         await pruneStalePlans(latestBlockHeight: latestBlockHeight)
 
         // find all candidates for the resubmission
@@ -54,13 +57,16 @@ extension TxResubmissionAction: Action {
 
                 // the last time resubmission was triggered is more than 5 minutes ago so try again
                 if diff > Constants.thresholdToTrigger {
-                    // resubmission
-                    do {
-                        for transaction in transactions {
+                    // resubmission; per-transaction error handling so one
+                    // transaction's dead endpoints can't starve the others
+                    for transaction in transactions {
+                        do {
                             try await resubmit(transaction: transaction)
+                        } catch {
+                            logger.error(
+                                "TxResubmissionAction failed to resubmit transaction \(transaction.rawID.toHexStringTxId()): \(error)"
+                            )
                         }
-                    } catch {
-                        logger.error("TxResubmissionAction failed to resubmit candidates.")
                     }
 
                     latestResolvedTime = Date().timeIntervalSince1970
@@ -98,6 +104,14 @@ private extension TxResubmissionAction {
             let createdTransaction = try CreatedTransaction(overview: transaction)
             try await submitPlanExecutor.submit(transaction: createdTransaction, endpoints: endpoints)
 
+        case .storeUnavailable:
+            // Whether the app ever submitted this transaction is unknown.
+            // Skip rather than risk broadcasting something the user never
+            // released or using an endpoint the user didn't choose.
+            logger.warn(
+                "TxResubmissionAction skipping transaction \(transaction.rawID.toHexStringTxId()): the submit plan store is unavailable."
+            )
+
         case nil:
             logger.info("TxResubmissionAction trying to resubmit transaction \(transaction.rawID.toHexStringTxId()).")
             let encodedTransaction = try transaction.encodedTransaction()
@@ -113,8 +127,12 @@ private extension TxResubmissionAction {
         for txId in plannedTxIds {
             do {
                 let transaction = try await transactionRepository.find(rawID: txId)
-                let isCandidate = transaction.minedHeight == nil && (transaction.expiryHeight ?? 0) > latestBlockHeight
-                if !isCandidate {
+                // Stale only once expired: pruning at "mined" would lose the
+                // plan if a reorg un-mines the transaction inside its expiry
+                // window. Transactions without an expiry height are never
+                // resubmission candidates, so their plans are stale right away.
+                let isStale = (transaction.expiryHeight ?? 0) <= latestBlockHeight
+                if isStale {
                     staleTxIds.append(txId)
                 }
             } catch ZcashError.transactionRepositoryEntityNotFound {
