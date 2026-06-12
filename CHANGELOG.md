@@ -8,6 +8,7 @@ and this library adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Changed
 - New wallets now use a recent tree state from the lightwalletd server as the wallet birthday, reducing unnecessary block scanning on first launch while retaining reorg safety. Falls back to the bundled checkpoint if the server is unreachable.
+- `ZcashTransaction.Overview.State.init` now accepts an optional `expiryHeight:` argument and treats an unmined transaction whose `expiryHeight` is at or below the supplied `currentHeight` as `.expired` even when the `expiredUnmined` column hasn't been flipped to `true`. This makes the Swift-side state-machine resilient to lagging or missed updates of that column (in particular: sent transactions that were unmined when the wallet migrated across a consensus-rule change, which previously stayed reported as `.pending` indefinitely). Existing call sites that don't pass `expiryHeight` keep their prior behaviour.
 
 # 2.6.0-alpha.5
 
