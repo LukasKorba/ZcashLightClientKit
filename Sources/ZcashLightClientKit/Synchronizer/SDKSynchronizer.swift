@@ -487,13 +487,22 @@ public class SDKSynchronizer: Synchronizer {
                     submitFailed = true
                     return TransactionSubmitResult.grpcFailure(txId: transaction.rawID, error: error)
                 } catch TransactionEncoderError.submitError(let code, let message) {
+                    if Self.isAlreadyKnownToNetwork(message) {
+                        return TransactionSubmitResult.success(txId: transaction.rawID)
+                    }
                     submitFailed = true
                     return TransactionSubmitResult.submitFailure(txId: transaction.rawID, code: code, description: message)
                 }
             }
         }
     }
-    
+
+    static func isAlreadyKnownToNetwork(_ message: String) -> Bool {
+        let lower = message.lowercased()
+        return lower.contains("already exists in mempool")
+            || lower.contains("already queued for download")
+    }
+
     public func createPCZTFromProposal(accountUUID: AccountUUID, proposal: Proposal) async throws -> Pczt {
         try await initializer.rustBackend.createPCZTFromProposal(
             accountUUID: accountUUID,
