@@ -56,6 +56,13 @@ protocol BlockEnhancer {
 }
 
 struct BlockEnhancerImpl {
+    private enum Constants {
+        static let maxRetries = 5
+        /// Exponential backoff between attempts within a single enhance cycle: ~0.2s, 0.8s, 3.2s, 12.8s capped at 30s.
+        static let baseRetryDelay: TimeInterval = 0.2
+        static let maxRetryDelay: TimeInterval = 30
+    }
+
     let blockDownloaderService: BlockDownloaderService
     let rustBackend: ZcashRustBackendWelding
     let transactionRepository: TransactionRepository
@@ -63,6 +70,7 @@ struct BlockEnhancerImpl {
     let service: LightWalletService
     let logger: Logger
     let sdkFlags: SDKFlags
+    let failureTracker: EnhanceFailureTracker
 }
 
 extension BlockEnhancerImpl: BlockEnhancer {
@@ -84,12 +92,27 @@ extension BlockEnhancerImpl: BlockEnhancer {
 
             for index in 0 ..< transactionDataRequests.count {
                 let transactionDataRequest = transactionDataRequests[index]
+                let trackedTxId = transactionDataRequest.trackedTxId
+
+                if let trackedTxId, await failureTracker.shouldSkipDueToBackoff(txId: trackedTxId) {
+                    logger.info(
+                        "BlockEnhancer skipping \(trackedTxId.toHexStringTxId()) — in cross-cycle backoff after prior failures."
+                    )
+                    continue
+                }
+
                 var retry = true
                 var retries = 0
-                let maxRetries = 5
+                let maxRetries = Constants.maxRetries
 
                 while retry && retries < maxRetries {
                     try Task.checkCancellation()
+
+                    if retries > 0 {
+                        let delay = retryDelay(forAttempt: retries)
+                        try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    }
+
                     do {
                         switch transactionDataRequest {
                         case .getStatus(let txId):
@@ -174,6 +197,15 @@ extension BlockEnhancerImpl: BlockEnhancer {
                         logger.error("could not enhance transactionDataRequest \(transactionDataRequest) - Error: \(error)")
                     }
                 }
+
+                if let trackedTxId {
+                    if retry {
+                        logger.error("BlockEnhancer giving up on \(trackedTxId.toHexStringTxId()) after \(maxRetries) failed attempts. Backing off until the next cycle.")
+                        await failureTracker.recordFailure(txId: trackedTxId)
+                    } else {
+                        await failureTracker.recordSuccess(txId: trackedTxId)
+                    }
+                }
             }
         } catch {
             logger.error("error enhancing transactions! \(error)")
@@ -185,5 +217,24 @@ extension BlockEnhancerImpl: BlockEnhancer {
         }
 
         return (try? await transactionRepository.find(in: range, limit: Int.max, kind: .all))
+    }
+
+    private func retryDelay(forAttempt attempt: Int) -> TimeInterval {
+        let exponent = max(0, attempt - 1)
+        let raw = Constants.baseRetryDelay * pow(4.0, Double(exponent))
+        return min(raw, Constants.maxRetryDelay)
+    }
+}
+
+extension TransactionDataRequest {
+    /// The txid this request resolves against, when it's a per-txid request the failure
+    /// tracker can dedupe on. `transactionsInvolvingAddress` requests are not txid-scoped
+    /// and don't participate in the tracker.
+    var trackedTxId: Data? {
+        switch self {
+        case .getStatus(let txId): return txId.data
+        case .enhancement(let txId): return txId.data
+        case .transactionsInvolvingAddress: return nil
+        }
     }
 }
