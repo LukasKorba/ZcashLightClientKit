@@ -6,6 +6,10 @@ and this library adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 # Unreleased
 
+## Fixed
+- `TxResubmissionAction.latestResolvedTime` now seeds to the current wall-clock time at construction instead of `0`. The previous zero-init made the 5-minute throttle a no-op on the action's first invocation (`diff = now - 0` is ~56 years, well over the 300s threshold), so the action could re-broadcast a freshly-submitted transaction during the very first sync cycle of the session. The throttle now engages on first invocation as intended.
+- `TxResubmissionAction` now catches per-transaction submit errors inside the for-loop instead of around it. Previously, a throw on one candidate's encode or submit aborted the remaining candidates for the cycle while still advancing the throttle, hiding pending re-broadcasts until the next 5-minute window. Errors are also logged with the offending txid and the underlying cause.
+
 ## Changed
 - New wallets now use a recent tree state from the lightwalletd server as the wallet birthday, reducing unnecessary block scanning on first launch while retaining reorg safety. Falls back to the bundled checkpoint if the server is unreachable.
 - `ZcashTransaction.Overview.State.init` now accepts an optional `expiryHeight:` argument and treats an unmined transaction whose `expiryHeight` is at or below the supplied `currentHeight` as `.expired` even when the `expiredUnmined` column hasn't been flipped to `true`. This makes the Swift-side state-machine resilient to lagging or missed updates of that column (in particular: sent transactions that were unmined when the wallet migrated across a consensus-rule change, which previously stayed reported as `.pending` indefinitely). Existing call sites that don't pass `expiryHeight` keep their prior behaviour.

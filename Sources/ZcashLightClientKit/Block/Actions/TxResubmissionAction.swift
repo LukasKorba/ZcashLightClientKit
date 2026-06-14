@@ -12,7 +12,7 @@ final class TxResubmissionAction {
         static let thresholdToTrigger = TimeInterval(300.0)
     }
     
-    var latestResolvedTime: TimeInterval = 0
+    var latestResolvedTime: TimeInterval = Date().timeIntervalSince1970
     let transactionRepository: TransactionRepository
     var transactionEncoder: TransactionEncoder
     let logger: Logger
@@ -44,18 +44,17 @@ extension TxResubmissionAction: Action {
                 
                 // the last time resubmission was triggered is more than 5 minutes ago so try again
                 if diff > Constants.thresholdToTrigger {
-                    // resubmission
-                    do {
-                        for transaction in transactions {
+                    for transaction in transactions {
+                        do {
                             logger.info("TxResubmissionAction trying to resubmit transaction \(transaction.rawID.toHexStringTxId()).")
                             let encodedTransaction = try transaction.encodedTransaction()
-                            
+
                             try await transactionEncoder.submit(transaction: encodedTransaction)
+                        } catch {
+                            logger.error("TxResubmissionAction failed to resubmit \(transaction.rawID.toHexStringTxId()): \(error)")
                         }
-                    } catch {
-                        logger.error("TxResubmissionAction failed to resubmit candidates.")
                     }
-                    
+
                     latestResolvedTime = Date().timeIntervalSince1970
                 }
             }
