@@ -311,6 +311,7 @@ final class BroadcasterTests: ZcashTestCase {
         }
         mockContainer.mock(type: LightWalletService.self, isSingleton: true) { _ in serviceMock }
         mockContainer.mock(type: TransactionRepository.self, isSingleton: true) { _ in transactionRepository }
+        mockContainer.mock(type: Logger.self, isSingleton: true) { _ in submissionLifecycleLogger() }
 
         let initializer = Initializer(
             container: mockContainer,

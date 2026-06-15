@@ -14,7 +14,7 @@ final class MultiEndpointSubmitterTests: ZcashTestCase {
     override func setUp() async throws {
         try await super.setUp()
         mock = EndpointSubmitterMock()
-        submitter = MultiEndpointSubmitter(endpointSubmitter: mock, logger: NullLogger())
+        submitter = MultiEndpointSubmitter(endpointSubmitter: mock, logger: submissionLifecycleLogger())
     }
 
     private let fastTiming = SubmissionTiming(responseTimeout: 1.0, postAcceptanceGraceDelay: 0.3)

@@ -16,15 +16,18 @@ protocol EndpointSubmitter {
 final class GRPCEndpointSubmitter: EndpointSubmitter {
     private let torClient: TorClient
     private let sdkFlags: SDKFlags
+    private let logger: Logger
 
-    init(torClient: TorClient, sdkFlags: SDKFlags) {
+    init(torClient: TorClient, sdkFlags: SDKFlags, logger: Logger) {
         self.torClient = torClient
         self.sdkFlags = sdkFlags
+        self.logger = logger
     }
 
     func submit(transaction: CreatedTransaction, to endpoint: LightWalletEndpoint) async throws {
         let mode: ServiceMode
         let serviceTorClient: TorClient
+        let transport: String
         if await sdkFlags.torEnabled {
             // One isolated Tor client per submission attempt: connecting
             // through the shared TorClient serializes every endpoint behind
@@ -32,10 +35,16 @@ final class GRPCEndpointSubmitter: EndpointSubmitter {
             // would starve the whole multi-endpoint race.
             serviceTorClient = try await torClient.isolatedClient()
             mode = ServiceMode.txIdGroup(prefix: "submit", txId: transaction.txId)
+            transport = "an isolated Tor circuit"
         } else {
             serviceTorClient = torClient
             mode = ServiceMode.direct
+            transport = "a direct connection"
         }
+
+        logger.debug(
+            "Transaction \(transaction.txId.toHexStringTxId()) submitting to \(endpoint.host):\(endpoint.port) over \(transport)."
+        )
 
         let service = LightWalletGRPCServiceOverTor(endpoint: endpoint, tor: serviceTorClient)
 

@@ -101,10 +101,7 @@ enum Dependencies {
         }
 
         container.register(type: EndpointSubmitter.self, isSingleton: true) { di in
-            GRPCEndpointSubmitter(
-                torClient: di.resolve(TorClient.self),
-                sdkFlags: di.resolve(SDKFlags.self)
-            )
+            GRPCEndpointSubmitter(torClient: di.resolve(TorClient.self), sdkFlags: di.resolve(SDKFlags.self), logger: di.resolve(Logger.self))
         }
 
         container.register(type: MultiEndpointSubmitter.self, isSingleton: true) { di in

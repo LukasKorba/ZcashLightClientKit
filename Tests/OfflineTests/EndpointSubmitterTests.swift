@@ -11,7 +11,8 @@ final class EndpointSubmitterTests: ZcashTestCase {
     private func makeSubmitter() throws -> GRPCEndpointSubmitter {
         GRPCEndpointSubmitter(
             torClient: TorClient(torDir: try __torDirURL()),
-            sdkFlags: SDKFlags(torEnabled: false, exchangeRateEnabled: false)
+            sdkFlags: SDKFlags(torEnabled: false, exchangeRateEnabled: false),
+            logger: submissionLifecycleLogger()
         )
     }
 

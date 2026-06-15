@@ -14,7 +14,7 @@ final class SubmitPlanExecutorTests: ZcashTestCase {
     override func setUp() async throws {
         try await super.setUp()
         mock = EndpointSubmitterMock()
-        executor = SubmitPlanExecutor(endpointSubmitter: mock, logger: NullLogger())
+        executor = SubmitPlanExecutor(endpointSubmitter: mock, logger: submissionLifecycleLogger())
     }
 
     private func endpoint(_ index: Int) -> LightWalletEndpoint {

@@ -223,9 +223,12 @@ actor SubmissionRace {
 
     private func resolveIfAllFailed() {
         guard winner == nil, resolvedOutcome == nil, completedCount >= endpoints.count else { return }
+        let txId = transaction.txId.toHexStringTxId()
         if let firstRejection {
+            logger.debug("Transaction \(txId) rejected by all endpoints; first rejection: \(firstRejection.code) \(firstRejection.message).")
             resolve(.rejected(code: firstRejection.code, message: firstRejection.message))
         } else {
+            logger.debug("Transaction \(txId) unreachable; all \(endpoints.count) endpoint(s) failed at the transport level.")
             resolve(.unreachable)
         }
         finishRace()

@@ -58,9 +58,9 @@ final class TxResubmissionActionTests: ZcashTestCase {
         mockContainer.mock(type: TransactionRepository.self, isSingleton: true) { _ in self.transactionRepository }
         mockContainer.mock(type: TransactionEncoder.self, isSingleton: true) { _ in self.transactionEncoder }
         mockContainer.mock(type: SubmitPlanStoring.self, isSingleton: true) { _ in self.submitPlanStore }
-        mockContainer.mock(type: Logger.self, isSingleton: true) { _ in NullLogger() }
+        mockContainer.mock(type: Logger.self, isSingleton: true) { _ in submissionLifecycleLogger() }
         mockContainer.mock(type: SubmitPlanExecutor.self, isSingleton: true) { _ in
-            SubmitPlanExecutor(endpointSubmitter: self.endpointSubmitter, logger: NullLogger())
+            SubmitPlanExecutor(endpointSubmitter: self.endpointSubmitter, logger: submissionLifecycleLogger())
         }
 
         return TxResubmissionAction(container: mockContainer)

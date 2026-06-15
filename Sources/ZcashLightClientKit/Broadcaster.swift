@@ -175,6 +175,20 @@ public enum TransactionSubmissionOutcome: Equatable {
     case cancelled
 }
 
+extension TransactionSubmissionOutcome {
+    /// Short, log-friendly description (avoids dumping the whole endpoint struct).
+    var logDescription: String {
+        switch self {
+        case let .accepted(endpoint): return "accepted by \(endpoint.host):\(endpoint.port)"
+        case let .rejected(code, message): return "rejected (\(code) \(message))"
+        case .unreachable: return "unreachable (all endpoints failed at transport level)"
+        case .timedOut: return "timed out (may still have been broadcast)"
+        case .notAttempted: return "not attempted"
+        case .cancelled: return "cancelled (retry plan kept)"
+        }
+    }
+}
+
 /// Per-transaction result of a batch submission, pairing the transaction id with its outcome.
 public struct TransactionSubmissionReport: Equatable {
     public let txId: Data

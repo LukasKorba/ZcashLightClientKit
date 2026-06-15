@@ -54,13 +54,23 @@ final class SDKBroadcaster: Broadcaster {
         to endpoints: [LightWalletEndpoint],
         timing: SubmissionTiming
     ) async -> TransactionSubmissionOutcome {
-        guard !endpoints.isEmpty else { return .unreachable }
+        let txId = transaction.txId.toHexStringTxId()
+
+        guard !endpoints.isEmpty else {
+            logger.debug("Transaction \(txId) submit requested with no endpoints; nothing sent, transaction stays awaiting.")
+            return .unreachable
+        }
+
+        let endpointList = endpoints.map { "\($0.host):\($0.port)" }.joined(separator: ", ")
+        logger.debug("Transaction \(txId) submitting to \(endpoints.count) endpoint(s): \(endpointList).")
 
         // Record before any network attempt so a cancelled or timed-out race
         // still leaves the intended retry plan behind.
         await submitPlanStore.recordPlan(txId: transaction.txId, endpoints: endpoints)
 
-        return await multiEndpointSubmitter.submit(transaction: transaction, to: endpoints, timing: timing)
+        let outcome = await multiEndpointSubmitter.submit(transaction: transaction, to: endpoints, timing: timing)
+        logger.debug("Transaction \(txId) submission \(outcome.logDescription).")
+        return outcome
     }
 
     func submit(
@@ -68,11 +78,14 @@ final class SDKBroadcaster: Broadcaster {
         to endpoints: [LightWalletEndpoint],
         timing: SubmissionTiming
     ) async -> [TransactionSubmissionReport] {
+        logger.debug("Batch submitting \(transactions.count) transaction(s).")
         var reports: [TransactionSubmissionReport] = []
         var stopped = false
 
         for transaction in transactions {
+            let txId = transaction.txId.toHexStringTxId()
             if stopped {
+                logger.debug("Transaction \(txId) not attempted; an earlier transaction in the batch was not accepted.")
                 reports.append(TransactionSubmissionReport(txId: transaction.txId, outcome: .notAttempted))
                 continue
             }
@@ -83,6 +96,7 @@ final class SDKBroadcaster: Broadcaster {
             if case .accepted = outcome {
                 continue
             }
+            logger.debug("Batch stopping after \(txId) was \(outcome.logDescription); remaining marked not attempted.")
             stopped = true
         }
 
@@ -143,8 +157,12 @@ final class SDKBroadcaster: Broadcaster {
     ) async throws -> [CreatedTransaction] {
         let createdTransactions = try overviews.map { try CreatedTransaction(overview: $0) }
 
+        let txIdList = createdTransactions.map { $0.txId.toHexStringTxId() }.joined(separator: ", ")
         if recordingPlans {
+            logger.debug("Created \(createdTransactions.count) transaction(s) awaiting submission by the app: \(txIdList).")
             await submitPlanStore.markAwaitingSubmission(txIds: createdTransactions.map(\.txId))
+        } else {
+            logger.debug("Created \(createdTransactions.count) transaction(s) for immediate submission: \(txIdList).")
         }
 
         if !overviews.isEmpty {
