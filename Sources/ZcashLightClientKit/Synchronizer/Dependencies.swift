@@ -213,10 +213,6 @@ enum Dependencies {
             )
         }
         
-        container.register(type: EnhanceFailureTracker.self, isSingleton: true) { _ in
-            EnhanceFailureTracker()
-        }
-
         container.register(type: BlockEnhancer.self, isSingleton: true) { di in
             let blockDownloaderService = di.resolve(BlockDownloaderService.self)
             let rustBackend = di.resolve(ZcashRustBackendWelding.self)
@@ -225,7 +221,6 @@ enum Dependencies {
             let service = di.resolve(LightWalletService.self)
             let logger = di.resolve(Logger.self)
             let sdkFlags = di.resolve(SDKFlags.self)
-            let failureTracker = di.resolve(EnhanceFailureTracker.self)
 
             return BlockEnhancerImpl(
                 blockDownloaderService: blockDownloaderService,
@@ -234,8 +229,7 @@ enum Dependencies {
                 metrics: metrics,
                 service: service,
                 logger: logger,
-                sdkFlags: sdkFlags,
-                failureTracker: failureTracker
+                sdkFlags: sdkFlags
             )
         }
         

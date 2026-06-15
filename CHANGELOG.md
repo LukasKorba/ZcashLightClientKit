@@ -6,8 +6,8 @@ and this library adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 # Unreleased
 
-## Fixed
-- `BlockEnhancer` now applies exponential backoff between retries within an enhance cycle, surfaces an error-level log when a transaction exhausts its retry budget, and applies a per-txid cross-cycle backoff (via a new internal `EnhanceFailureTracker` actor) so a transaction that has repeatedly failed to enhance against the current endpoint is no longer re-fetched on every sync cycle. Previously, all retries fired back-to-back with no delay and the failure was dropped silently when exhausted, leaving received transactions stuck in a pending UI state indefinitely while the SDK hammered the same endpoint with the same failing request on every cycle.
+## Added
+- `BlockEnhancer` now emits structured diagnostic logs at each step of an enhance cycle — cycle start with request count, per-request type and attempt, fetch response shape (status, whether a tx was returned, whether a `minedHeight` was set), the decision taken (`setTransactionStatus` or `decryptAndStoreTransaction`), per-attempt errors with error type, retry exhaustion, and cycle completion. Logs use opaque per-request correlation IDs (no transaction ids, addresses, or other PII) so production logs are debuggable for future stuck-transaction reports without exposing user-identifying data.
 
 ## Changed
 - New wallets now use a recent tree state from the lightwalletd server as the wallet birthday, reducing unnecessary block scanning on first launch while retaining reorg safety. Falls back to the bundled checkpoint if the server is unreachable.
