@@ -487,7 +487,11 @@ public class SDKSynchronizer: Synchronizer {
                     submitFailed = true
                     return TransactionSubmitResult.grpcFailure(txId: transaction.rawID, error: error)
                 } catch TransactionEncoderError.submitError(let code, let message) {
-                    if Self.isAlreadyKnownToNetwork(message) {
+                    // Trust the network over the submit-side error: if the server confirms
+                    // it has this tx, the broadcast already landed (e.g. Zebra's
+                    // MempoolError::InMempool / AlreadyQueued, zcashd's "already in chain",
+                    // or any future variant). Treat as success and skip the failure screen.
+                    if await self.transactionEncoder.isTransactionKnownToServer(txId: transaction.rawID) {
                         return TransactionSubmitResult.success(txId: transaction.rawID)
                     }
                     submitFailed = true
@@ -495,12 +499,6 @@ public class SDKSynchronizer: Synchronizer {
                 }
             }
         }
-    }
-
-    static func isAlreadyKnownToNetwork(_ message: String) -> Bool {
-        let lower = message.lowercased()
-        return lower.contains("already exists in mempool")
-            || lower.contains("already queued for download")
     }
 
     public func createPCZTFromProposal(accountUUID: AccountUUID, proposal: Proposal) async throws -> Pczt {
