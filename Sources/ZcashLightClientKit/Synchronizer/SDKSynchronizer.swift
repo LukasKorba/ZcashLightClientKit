@@ -259,10 +259,19 @@ public class SDKSynchronizer: Synchronizer {
     
     private func resolveWitnessesFix() async {
         let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
-        let lastVersionCall = UserDefaults.standard.string(forKey: Constants.fixWitnessesLastVersionCall)
-        
-        guard lastVersionCall == nil || lastVersionCall! < appVersion else { return }
-        
+
+        guard let lastVersionCall = UserDefaults.standard.string(forKey: Constants.fixWitnessesLastVersionCall) else {
+            // No recorded version — run the fix.
+            await runWitnessesFix(appVersion: appVersion)
+            return
+        }
+
+        guard lastVersionCall < appVersion else { return }
+
+        await runWitnessesFix(appVersion: appVersion)
+    }
+
+    private func runWitnessesFix(appVersion: String) async {
         UserDefaults.standard.set(appVersion, forKey: Constants.fixWitnessesLastVersionCall)
         await initializer.rustBackend.fixWitnesses()
     }
