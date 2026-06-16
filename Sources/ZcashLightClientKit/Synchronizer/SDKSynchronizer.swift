@@ -54,13 +54,15 @@ public class SDKSynchronizer: Synchronizer {
     private let syncSession: SyncSession
     private let syncSessionTicker: SessionTicker
     var latestBlocksDataProvider: LatestBlocksDataProvider
+    private let submitPlanStore: SubmitPlanStoring
 
-    private var broadcasterStorage: Broadcaster?
-    public var broadcaster: Broadcaster {
-        guard let broadcaster = broadcasterStorage else {
+    private var broadcasterStorage: SDKBroadcaster?
+    public var broadcaster: Broadcaster { sdkBroadcaster }
+    private var sdkBroadcaster: SDKBroadcaster {
+        guard let broadcasterStorage else {
             preconditionFailure("Broadcaster accessed before initialization")
         }
-        return broadcaster
+        return broadcasterStorage
     }
 
     /// Creates an SDKSynchronizer instance
@@ -101,13 +103,15 @@ public class SDKSynchronizer: Synchronizer {
         self.syncSessionTicker = syncSessionTicker
         self.latestBlocksDataProvider = initializer.container.resolve(LatestBlocksDataProvider.self)
         self.sdkFlags = initializer.container.resolve(SDKFlags.self)
+        self.submitPlanStore = initializer.container.resolve(SubmitPlanStoring.self)
 
         self.broadcasterStorage = SDKBroadcaster(
             transactionEncoder: transactionEncoder,
             initializer: initializer,
-            sdkFlags: sdkFlags,
             logger: logger,
             eventSubject: eventSubject,
+            submitPlanStore: submitPlanStore,
+            multiEndpointSubmitter: initializer.container.resolve(MultiEndpointSubmitter.self),
             statusCheck: { [weak self] in
                 guard let self else {
                     throw ZcashError.synchronizerNotPrepared
@@ -469,45 +473,44 @@ public class SDKSynchronizer: Synchronizer {
         proposal: Proposal,
         spendingKey: UnifiedSpendingKey
     ) async throws -> AsyncThrowingStream<TransactionSubmitResult, Error> {
-        let transactions = try await broadcaster.createProposedTransactions(
+        let transactions = try await sdkBroadcaster.createProposedTransactions(
             proposal: proposal,
-            spendingKey: spendingKey
+            spendingKey: spendingKey,
+            recordingPlans: false
         )
-        
+
         return submitTransactions(transactions)
     }
-    
-    func submitTransactions(_ transactions: [ZcashTransaction.Overview]) -> AsyncThrowingStream<TransactionSubmitResult, Error> {
+
+    func submitTransactions(_ transactions: [CreatedTransaction]) -> AsyncThrowingStream<TransactionSubmitResult, Error> {
         var iterator = transactions.makeIterator()
         var submitFailed = false
-        
-        return AsyncThrowingStream() {
+
+        return AsyncThrowingStream(unfolding: {
             guard let transaction = iterator.next() else { return nil }
 
             if submitFailed {
-                return .notAttempted(txId: transaction.rawID)
+                return .notAttempted(txId: transaction.txId)
             } else {
-                let encodedTransaction = try transaction.encodedTransaction()
-
                 do {
-                    try await self.transactionEncoder.submit(transaction: encodedTransaction)
-                    return TransactionSubmitResult.success(txId: transaction.rawID)
+                    try await self.transactionEncoder.submit(transaction: transaction.encodedTransaction)
+                    return TransactionSubmitResult.success(txId: transaction.txId)
                 } catch ZcashError.serviceSubmitFailed(let error) {
                     submitFailed = true
-                    return TransactionSubmitResult.grpcFailure(txId: transaction.rawID, error: error)
+                    return TransactionSubmitResult.grpcFailure(txId: transaction.txId, error: error)
                 } catch TransactionEncoderError.submitError(let code, let message) {
                     // Trust the network over the submit-side error: if the server confirms
                     // it has this tx, the broadcast already landed (e.g. Zebra's
                     // MempoolError::InMempool / AlreadyQueued, zcashd's "already in chain",
                     // or any future variant). Treat as success and skip the failure screen.
-                    if await self.transactionEncoder.isTransactionKnownToServer(txId: transaction.rawID) {
-                        return TransactionSubmitResult.success(txId: transaction.rawID)
+                    if await self.transactionEncoder.isTransactionKnownToServer(txId: transaction.txId) {
+                        return TransactionSubmitResult.success(txId: transaction.txId)
                     }
                     submitFailed = true
-                    return TransactionSubmitResult.submitFailure(txId: transaction.rawID, code: code, description: message)
+                    return TransactionSubmitResult.submitFailure(txId: transaction.txId, code: code, description: message)
                 }
             }
-        }
+        })
     }
 
     public func createPCZTFromProposal(accountUUID: AccountUUID, proposal: Proposal) async throws -> Pczt {
@@ -548,11 +551,12 @@ public class SDKSynchronizer: Synchronizer {
     }
     
     public func createTransactionFromPCZT(pcztWithProofs: Pczt, pcztWithSigs: Pczt) async throws -> AsyncThrowingStream<TransactionSubmitResult, Error> {
-        let transactions = try await broadcaster.createTransactionFromPCZT(
+        let transactions = try await sdkBroadcaster.createTransactionFromPCZT(
             pcztWithProofs: pcztWithProofs,
-            pcztWithSigs: pcztWithSigs
+            pcztWithSigs: pcztWithSigs,
+            recordingPlans: false
         )
-        
+
         return submitTransactions(transactions)
     }
 
@@ -776,6 +780,9 @@ public class SDKSynchronizer: Synchronizer {
                     self?.transactionRepository.closeDBConnection()
                 },
                 completion: { [weak self] possibleError in
+                    if possibleError == nil {
+                        await self?.submitPlanStore.wipe()
+                    }
                     await self?.updateStatus(.unprepared)
                     if let error = possibleError {
                         subject.send(completion: .failure(error))
