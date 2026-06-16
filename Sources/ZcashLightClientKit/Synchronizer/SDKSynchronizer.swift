@@ -259,10 +259,19 @@ public class SDKSynchronizer: Synchronizer {
     
     private func resolveWitnessesFix() async {
         let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
-        let lastVersionCall = UserDefaults.standard.string(forKey: Constants.fixWitnessesLastVersionCall)
-        
-        guard lastVersionCall == nil || lastVersionCall! < appVersion else { return }
-        
+
+        guard let lastVersionCall = UserDefaults.standard.string(forKey: Constants.fixWitnessesLastVersionCall) else {
+            // No recorded version — run the fix.
+            await runWitnessesFix(appVersion: appVersion)
+            return
+        }
+
+        guard lastVersionCall < appVersion else { return }
+
+        await runWitnessesFix(appVersion: appVersion)
+    }
+
+    private func runWitnessesFix(appVersion: String) async {
         UserDefaults.standard.set(appVersion, forKey: Constants.fixWitnessesLastVersionCall)
         await initializer.rustBackend.fixWitnesses()
     }
@@ -487,13 +496,20 @@ public class SDKSynchronizer: Synchronizer {
                     submitFailed = true
                     return TransactionSubmitResult.grpcFailure(txId: transaction.rawID, error: error)
                 } catch TransactionEncoderError.submitError(let code, let message) {
+                    // Trust the network over the submit-side error: if the server confirms
+                    // it has this tx, the broadcast already landed (e.g. Zebra's
+                    // MempoolError::InMempool / AlreadyQueued, zcashd's "already in chain",
+                    // or any future variant). Treat as success and skip the failure screen.
+                    if await self.transactionEncoder.isTransactionKnownToServer(txId: transaction.rawID) {
+                        return TransactionSubmitResult.success(txId: transaction.rawID)
+                    }
                     submitFailed = true
                     return TransactionSubmitResult.submitFailure(txId: transaction.rawID, code: code, description: message)
                 }
             }
         }
     }
-    
+
     public func createPCZTFromProposal(accountUUID: AccountUUID, proposal: Proposal) async throws -> Pczt {
         try await initializer.rustBackend.createPCZTFromProposal(
             accountUUID: accountUUID,
