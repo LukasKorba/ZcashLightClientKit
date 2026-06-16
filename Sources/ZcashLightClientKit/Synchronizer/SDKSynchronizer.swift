@@ -486,7 +486,7 @@ public class SDKSynchronizer: Synchronizer {
         var iterator = transactions.makeIterator()
         var submitFailed = false
 
-        return AsyncThrowingStream() {
+        return AsyncThrowingStream(unfolding: {
             guard let transaction = iterator.next() else { return nil }
 
             if submitFailed {
@@ -503,14 +503,14 @@ public class SDKSynchronizer: Synchronizer {
                     // it has this tx, the broadcast already landed (e.g. Zebra's
                     // MempoolError::InMempool / AlreadyQueued, zcashd's "already in chain",
                     // or any future variant). Treat as success and skip the failure screen.
-                    if await self.transactionEncoder.isTransactionKnownToServer(txId: transaction.rawID) {
-                        return TransactionSubmitResult.success(txId: transaction.rawID)
+                    if await self.transactionEncoder.isTransactionKnownToServer(txId: transaction.txId) {
+                        return TransactionSubmitResult.success(txId: transaction.txId)
                     }
                     submitFailed = true
                     return TransactionSubmitResult.submitFailure(txId: transaction.txId, code: code, description: message)
                 }
             }
-        }
+        })
     }
 
     public func createPCZTFromProposal(accountUUID: AccountUUID, proposal: Proposal) async throws -> Pczt {

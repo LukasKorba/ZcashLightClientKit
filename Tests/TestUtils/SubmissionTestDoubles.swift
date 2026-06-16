@@ -267,6 +267,10 @@ final class StubTransactionEncoder: TransactionEncoder {
         submittedTransactions.append(transaction)
     }
 
+    func isTransactionKnownToServer(txId: Data) async -> Bool {
+        false
+    }
+
     func fetchTransactionsForTxIds(_ txIds: [Data]) async throws -> [ZcashTransaction.Overview] {
         receivedFetchTxIds = txIds
         return txIds.compactMap { txId in
