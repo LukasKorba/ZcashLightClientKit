@@ -6,6 +6,9 @@ and this library adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 # Unreleased
 
+## Fixed
+- `TxResubmissionAction.latestResolvedTime` now seeds to the current wall-clock time at construction instead of `0`. The previous zero-init made the 5-minute throttle a no-op on the action's first invocation (`diff = now - 0` is ~56 years, well over the 300s threshold), so the action could re-broadcast a freshly-submitted transaction during the very first sync cycle of the session. The throttle now engages on first invocation as intended.
+
 ## Changed
 - New wallets now use a recent tree state from the lightwalletd server as the wallet birthday, reducing unnecessary block scanning on first launch while retaining reorg safety. Falls back to the bundled checkpoint if the server is unreachable.
 - `Broadcaster` has been redesigned for multi-server submission (breaking change to the 2.6.0-alpha API; see MIGRATING.md):
