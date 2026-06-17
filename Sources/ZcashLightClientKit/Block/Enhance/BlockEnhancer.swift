@@ -103,7 +103,6 @@ extension BlockEnhancerImpl: BlockEnhancer {
                                 txId: txId.data,
                                 mode: await sdkFlags.ifTor(ServiceMode.txIdGroup(prefix: "fetch", txId: txId.data))
                             )
-                            retry = false
                             logger.info("BlockEnhancer [\(reqID)] fetch returned status=\(response.status) has_tx=\(response.tx != nil)")
 
                             if response.status == .txidNotRecognized {
@@ -113,13 +112,13 @@ extension BlockEnhancerImpl: BlockEnhancer {
                                 try await rustBackend.setTransactionStatus(txId: fetchedTransaction.rawID, status: response.status)
                                 logger.info("BlockEnhancer [\(reqID)] setTransactionStatus called (status=\(response.status))")
                             }
+                            retry = false
 
                         case .enhancement(let txId):
                             let response = try await blockDownloaderService.fetchTransaction(
                                 txId: txId.data,
                                 mode: await sdkFlags.ifTor(ServiceMode.txIdGroup(prefix: "fetch", txId: txId.data))
                             )
-                            retry = false
                             let hasMined = response.tx?.minedHeight != nil
                             logger.info("BlockEnhancer [\(reqID)] fetch returned status=\(response.status) has_tx=\(response.tx != nil) has_mined_height=\(hasMined)")
 
@@ -133,6 +132,7 @@ extension BlockEnhancerImpl: BlockEnhancer {
                                 )
                                 logger.info("BlockEnhancer [\(reqID)] decryptAndStoreTransaction called has_mined_height=\(hasMined)")
                             }
+                            retry = false
 
                         case .transactionsInvolvingAddress(let tia):
                             // TODO: [#1554] Remove this guard once lightwalletd servers support open-ended ranges.
