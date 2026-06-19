@@ -13,7 +13,7 @@ extension Connection {
         do {
             let rows = try self.prepare(sql)
             var result = ""
-            
+
             for row in rows {
                 let stringRow = row.map { value -> String in
                     if let value {
@@ -22,10 +22,10 @@ extension Connection {
                     return "NULL"
                 }
                 .joined(separator: " | ")
-                
+
                 result = "\(result)\n\(stringRow)"
             }
-            
+
             return result.isEmpty ? "No results" : result
         } catch {
             return "Error: \(error)"
@@ -46,12 +46,12 @@ class TransactionSQLDAO: TransactionRepository {
     }
 
     let dbProvider: ConnectionProvider
-    
+
     private let blockDao: BlockSQLDAO
     private let transactionsView = View("v_transactions")
     private let txOutputsView = View("v_tx_outputs")
     private let traceClosure: ((String) -> Void)?
-    
+
     init(dbProvider: ConnectionProvider, traceClosure: ((String) -> Void)? = nil) {
         self.dbProvider = dbProvider
         self.blockDao = BlockSQLDAO(dbProvider: dbProvider)
@@ -80,24 +80,24 @@ class TransactionSQLDAO: TransactionRepository {
 
     func resolveMissingBlockTimes(for transactions: [ZcashTransaction.Overview]) async throws -> [ZcashTransaction.Overview] {
         var transactionsCopy = transactions
-        
+
         for i in 0..<transactions.count {
             let transaction = transactions[i]
-            
+
             guard transaction.blockTime == nil else {
                 continue
             }
-            
+
             if let expiryHeight = transaction.expiryHeight {
                 if let block = try await blockForHeight(expiryHeight) {
                     transactionsCopy[i].blockTime = TimeInterval(block.time)
                 }
             }
         }
-        
+
         return transactionsCopy
     }
-    
+
     @DBActor
     func fetchTxidsWithMemoContaining(searchTerm: String) async throws -> [Data] {
         let query = transactionsView
@@ -111,10 +111,10 @@ class TransactionSQLDAO: TransactionRepository {
             let txid = Data(blob: txidBlob)
             txids.append(txid)
         }
-        
+
         return txids
     }
-    
+
     @DBActor
     func blockForHeight(_ height: BlockHeight) async throws -> Block? {
         try blockDao.block(at: height)
@@ -128,7 +128,7 @@ class TransactionSQLDAO: TransactionRepository {
             throw ZcashError.transactionRepositoryCountAll(error)
         }
     }
-    
+
     @DBActor
     func countUnmined() async throws -> Int {
         do {
@@ -174,7 +174,7 @@ class TransactionSQLDAO: TransactionRepository {
         guard
             let transactionBlockHeight = transaction.minedHeight
         else { throw ZcashError.transactionRepositoryTransactionMissingRequiredFields }
-        
+
         let transactionIndex = transaction.index ?? Int.max
         let query = transactionsView
             .order((ZcashTransaction.Overview.Column.minedHeight ?? BlockHeight.max).desc)
@@ -187,7 +187,7 @@ class TransactionSQLDAO: TransactionRepository {
             )
             .filterQueryFor(kind: kind)
             .limit(limit)
-        
+
         return try await execute(query) { try ZcashTransaction.Overview(row: $0) }
     }
 
@@ -202,7 +202,7 @@ class TransactionSQLDAO: TransactionRepository {
 
         return try await execute(query) { try ZcashTransaction.Overview(row: $0) }
     }
-    
+
     func findReceived(offset: Int, limit: Int) async throws -> [ZcashTransaction.Overview] {
         let query = transactionsView
             .filterQueryFor(kind: .received)
@@ -238,7 +238,7 @@ class TransactionSQLDAO: TransactionRepository {
             throw ZcashError.transactionRepositoryFindMemos(error)
         }
     }
-    
+
     func findMemos(for transaction: ZcashTransaction.Overview) async throws -> [Memo] {
         try await findMemos(for: transaction.rawID)
     }
@@ -256,11 +256,11 @@ class TransactionSQLDAO: TransactionRepository {
 
     private func execute<Entity>(_ query: View, createEntity: (Row) throws -> Entity) async throws -> Entity {
         let entities: [Entity] = try await execute(query, createEntity: createEntity)
-        
+
         guard let entity = entities.first else {
             throw ZcashError.transactionRepositoryEntityNotFound
         }
-        
+
         return entity
     }
 
@@ -280,12 +280,12 @@ class TransactionSQLDAO: TransactionRepository {
             }
         }
     }
-    
+
     func debugDatabase(sql: String) -> String {
         guard let connection = try? debugConnection() else {
             return "Connection failed"
         }
-        
+
         return connection.debugQuery(sql)
     }
 }
@@ -325,7 +325,7 @@ extension Data {
         let bytes = blob.bytes
         self = Data(bytes: bytes, count: bytes.count)
     }
-    
+
     var bytes: [UInt8] {
         return [UInt8](self)
     }
