@@ -6,6 +6,8 @@ and this library adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 # Unreleased
 
+# 2.6.0-alpha.6
+
 ## Added
 - `BlockEnhancer` now emits structured diagnostic logs at each step of an enhance cycle — cycle start with request count, per-request type and attempt, fetch response shape (status, whether a tx was returned, whether a `minedHeight` was set), the decision taken (`setTransactionStatus` or `decryptAndStoreTransaction`), per-attempt errors with error type, retry exhaustion, and cycle completion. Logs use opaque per-request correlation IDs (no transaction ids, addresses, or other PII) so production logs are debuggable for future stuck-transaction reports without exposing user-identifying data.
 
@@ -29,6 +31,24 @@ and this library adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `LightWalletGRPCService` now shuts down its NIO event loop group in `stop()`, fixing a thread leak for every ephemeral connection (one per endpoint per `Broadcaster` submission attempt).
 - `Synchronizer.submitTransactions` now verifies submit failures against the server before surfacing them: when the submit RPC returns a non-zero error code, the SDK immediately asks the same lightwalletd whether the tx is known via `GetTransaction`, and reclassifies the result as `TransactionSubmitResult.success` if the server reports the tx is in mempool or chain. This covers the cases that previously produced misleading failure UIs — Zebra's `MempoolError::InMempool` / `AlreadyQueued`, zcashd's `RPC_VERIFY_ALREADY_IN_CHAIN`, and any future "already known" variant we don't recognise — without depending on backend-specific error codes or message text.
 - `ZcashTransaction.Overview.State.init` now accepts an optional `expiryHeight:` argument and treats an unmined transaction whose `expiryHeight` is at or below the supplied `currentHeight` as `.expired` even when the `expiredUnmined` column hasn't been flipped to `true`. This makes the Swift-side state-machine resilient to lagging or missed updates of that column (in particular: sent transactions that were unmined when the wallet migrated across a consensus-rule change, which previously stayed reported as `.pending` indefinitely). Existing call sites that don't pass `expiryHeight` keep their prior behaviour.
+
+## Checkpoints
+
+Mainnet
+
+````
+Sources/ZcashLightClientKit/Resources/checkpoints/mainnet/3357500.json
+...
+Sources/ZcashLightClientKit/Resources/checkpoints/mainnet/3390000.json
+````
+
+Testnet
+
+````
+Sources/ZcashLightClientKit/Resources/checkpoints/testnet/4040000.json
+...
+Sources/ZcashLightClientKit/Resources/checkpoints/testnet/4090000.json
+````
 
 # 2.6.0-alpha.5
 
