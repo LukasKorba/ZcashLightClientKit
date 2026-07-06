@@ -6,7 +6,106 @@ and this library adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 # Unreleased
 
+## Added
+- **Slipstream v0.5 sync levers — ON BY DEFAULT.** Fresh restores are another 26–42% faster
+  on top of v0.4 across the fleet (production, same wallet: M4 ~19–20 s weather-immune;
+  iPhone 16 Pro 50.0 s → 43.1 s; iPad Air 4 117 → 67.6 s; iPad 2018 (A10, 2 GB) 525 → 283 s
+  all-time −46%). Three engine changes:
+  - *Boundary treestate prefetch* (unflagged): the per-chunk `GetTreeState` RPC — up to 62%
+    of the scan wall on bad server days — is spawned at chunk emit and fully hidden behind
+    scanning (measured `prefetch_wait` on device: microseconds). Sync times no longer swing
+    with server-side treestate cost ("network weather").
+  - *Gated interleaved enhancement* (unflagged): interleaved enhancement passes and their
+    full persist drains now fire only when notes were actually found since the last run,
+    eliminating no-op drain stalls (device `enhance_s` swings of 1–21 s collapse to <1.5 s).
+  - *GLV endomorphism trial-decrypt DH* (`endo_mul`, default ON): half-length Straus ladder
+    on the per-item Diffie–Hellman path, byte-identical output, KAT-gated; −24% DH core-time
+    at 100% coverage on every measured chip, +15–16% wall on DH-saturated devices (A-series).
+    Kill switch: `ZCASH_ENDO_MUL=0`.
+- **Slipstream v0.4 "graft, don't grind" — ON BY DEFAULT.** Fresh restores are 13–46% faster
+  across the device fleet (measured: M4 −46%, iPhone 16 Pro −29%, iPad 10th gen −13%,
+  iPad A10 −33%) via two engine levers, both default-on after passing the full gate suite
+  (semantic oracle, spend-from-grafted-witness circuit proof, mainnet root audit 19/19,
+  device scenario rows 100%):
+  - *Subtree-root grafting*: note-free completed shards install the server-provided subtree
+    root instead of being rebuilt locally (sampling audit verifies 1-in-16 against a local
+    build; any mismatch loses to the built shard).
+  - *Batch-affine Sinsemilla*: the shards that do build compute their tree combines
+    level-synchronously with shared Montgomery inversions (byte-identical output).
+  Kill switches: `ZCASH_GRAFT_SUBTREE=0`, `ZCASH_BATCH_COMBINE=0`.
+- **Slipstream engine API v2** (`docs/slipstream/plans/ENGINE_API_V2.md`) — the engine now exports
+  the wallet semantics every host previously had to re-derive:
+  - Snapshot fields `is_recovering` (engine-computed from suggested ranges vs the wallet's
+    recover-until height, with the fail-safe latch built in: a terminally-failed or completed pass
+    can never wedge a "Restoring" UI), `progress_permille` (blessed 0–1000 progress,
+    session-monotonic — never regresses while the handle lives; completion forces 1000) and
+    `stalled_seconds` (seconds without forward progress while syncing).
+  - The event ring no longer silently drops critical events on overflow: SyncDone / SyncError /
+    FoundTransactions survive (oldest started/progress events are evicted first) and every
+    eviction is logged.
+  - `slipstream_v_recovery_balance` — an engine-owned view giving any host the never-over-showing
+    restore balance (Σ of final, reconciled per-account transaction deltas) with one SELECT.
+  - `zcashlc_slipstream_notify_tx_change` — the host pokes after storing a just-broadcast
+    transaction; the engine emits FoundTransactions through its normal event channel.
+  - `zcashlc_slipstream_wallet_summary` — a unified, phase-resolving summary: the upstream wallet
+    summary when synced; per-account recovery balances (which never over-show) while restoring.
+    One call, correct at every phase.
+  - `slipstream-cli watch` — a live wallet console rendered purely from the above (the crate's
+    "second host" acceptance proof; also repaired the CLI build, broken since the pass-lock change).
+- `ZcashError.initializerSeedMismatch` (`ZINIT0006`): `prepare(with:walletBirthday:)` now validates the
+  supplied seed against the wallet database's existing seed-derived account(s) and throws instead of
+  silently opening the old wallet. Previously, restoring a *different* seed over an existing `data.db`
+  no-op'd: the keychain held the new seed while the database kept the old account, so the app displayed
+  — and could receive funds to — an address the new seed cannot spend, and sends failed
+  (`ZRUST0002`). Wallets whose only accounts are imported (e.g. hardware-wallet UFVKs, which have no
+  seed-derived account to compare) are exempt and behave as before. Apps should treat this error as
+  "wipe first, then restore".
+- A freshly submitted transaction now surfaces in `eventStream` immediately: `submitTransactions`
+  emits `foundTransactions` right after a successful broadcast instead of waiting for the engine's
+  next mempool/scan round, so a new send appears in the app's Activity as pending without delay.
+
 ## Fixed
+- Stopping (or restarting) the Slipstream engine now DRAINS the in-flight write-behind
+  commit (bounded ≤10 s): `abort()` cannot cancel the `spawn_blocking` commit closure, so an
+  orphaned commit could land AFTER a stop returned — colliding with the next pass's first
+  writes ("database is locked") and, worse, marking a range Scanned after `importAccount`'s
+  force-rescan re-queue, which silently excluded that range from the new account's scan.
+  A returned `stop()` now means the wallet file is quiescent, making the
+  delete/import/rewind serialization guarantees unconditional.
+- `rewind(_:)` and `importAccount` on the Slipstream synchronizer now serialize with the sync
+  engine (stop → mutate → restart), the same contract as `deleteAccount`: a rewind can no
+  longer truncate the chain state under a mid-write pass, and an import's force-rescan
+  re-queue can no longer be clobbered by an in-flight commit marking a range Scanned after it
+  (which would have silently skipped re-scanning that range for the new account's notes). A
+  failed rewind/import restarts the engine rather than leaving it stopped.
+- Deleting an account (`deleteAccount`) on the Slipstream synchronizer no longer races the sync
+  engine. It now serializes (stop → delete → restart), and the engine prunes the deleted
+  account's orphaned historic scan ranges at every session open — so removing a hardware-wallet
+  account mid-restore neither fails the in-flight pass (the pass scanned with a cached copy of
+  the deleted account's viewing key and then failed writing its notes) nor leaves the wallet
+  deep-scanning history for keys that no longer exist. Deleted transactions also disappear from
+  `eventStream` immediately (the engine's transaction-set version is bumped on delete).
+- The Slipstream sync session now revives itself after a NON-transient pass failure with a
+  capped backoff (15 s → 5 min) instead of staying dead until app relaunch. Every failure is
+  still surfaced (error state + event) — but a one-shot cause, like an account deleted while a
+  range was in flight, self-heals on the first revival.
+- All FFI wallet-database connections (and the engine's write-behind persist lane) now carry a
+  15 s SQLite `busy_timeout`, so a host write landing while the engine holds the write lock
+  waits briefly instead of failing with `SQLITE_BUSY`.
+- `rewind(_:)` on the Slipstream synchronizer now resets its cached wallet summary (and the
+  recovery-log/latch state derived from it) after truncating, matching `wipe()`. Previously the first
+  balance/summary reads after a rewind could serve pre-rewind cached values until the next sync pass.
+- A rapid `stop()` → `start()` on the Slipstream synchronizer can no longer abort the freshly started
+  pass: `stop()`'s detached engine-stop is now awaited at the top of `start()` so the old stop cannot
+  land after (and cancel) the new run.
+- The Slipstream engine now sets a 5s SQLite `busy_timeout` on its side connections (and the SDK's
+  read connections do the same), so concurrent reads during engine writes wait briefly instead of
+  failing with `SQLITE_BUSY`.
+- The Slipstream engine rejects server-supplied block heights that exceed the `u32` range
+  (misbehaving server) instead of silently truncating them into the reorg-recovery height.
+- Slipstream recovery ("Restoring") state can no longer wedge normal wallet operation. `SlipstreamSynchronizer` now resolves the recovery gate from the engine's terminal state instead of only a lagging wallet-summary read: a completed pass (`Done`) clears `isRecovering` the instant the engine finishes — so a "Restoring 100%" banner can no longer stay stuck after a restore completes — and a terminally-failed pass (`Error`) releases the gate (surfacing the wallet's balance + Activity plus the error) rather than holding it forever. A transient disconnect still stays "recovering" and resumes on reconnect.
+- Fixed a Slipstream sync crash (`rustSlipstreamSyncFailed`, engine `Error(2)`) that could occur after importing an account (e.g. a Keystone hardware wallet) into a running wallet: `importAccount` restarted the sync pass while the previous one was still winding down, running two passes against the same wallet database concurrently. The engine now serializes passes so a restart can't overlap. (See the `libzcashlc` CHANGELOG.)
+- Fixed a mined, confirmed transaction disappearing from the Slipstream Activity list — a Zodl↔Keystone transfer that showed while pending, then vanished and did not return even after an app restart. The read-side reconciliation filter (`slipstream_v_tx_reconciled`, introduced for the recent-first restore "phantom +receive" fix) was applied to `allTransactions()` unconditionally on the assumption it was a no-op outside recovery. That assumption did not hold: the view can flag a fresh send whose just-spent note is not linked yet even on a fully-synced wallet, which dropped the confirmed transaction indefinitely. `SlipstreamSynchronizer` now gates the filter on `currentlyRecovering` — outside an active recovery it is a hard no-op (and skips the view query on the Activity-fetch hot path) so mined transactions always surface, while the phantom-receive protection during a restore is unchanged.
 - Tor-layer errors (`rustTorConnectToLightwalletd`, `rustTorLwdGetInfo`, `rustTorLwdSubmit`, `rustTorLwdFetchTransaction`, `rustTorLwdLatestBlockHeight`, `rustTorLwdGetTreeState`) are now classified as retryable service errors in `CompactBlockProcessor`. Previously these errors bypassed the service-error retry path and went straight to a fatal sync failure, so a transient Tor circuit/stream issue (e.g. "remote hostname lookup failure", "Failed to obtain exit circuit for ports", "Tor network protocol violation") required a full app restart to recover. They now trigger the same reset-and-retry behavior (including tearing down cached Tor connections via `service.closeConnections()`) as other transport errors, up to `ZcashSDK.serviceFailureRetries` times.
 
 # 2.6.0-alpha.6

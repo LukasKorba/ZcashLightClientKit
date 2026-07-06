@@ -22,11 +22,9 @@ public protocol ClosureSynchronizer {
     var stateStream: AnyPublisher<SynchronizerState, Never> { get }
     var eventStream: AnyPublisher<SynchronizerEvent, Never> { get }
 
-    // swiftlint:disable:next function_parameter_count
     func prepare(
         with seed: [UInt8]?,
-        walletBirthday: BlockHeight,
-        for walletMode: WalletInitMode,
+        walletBirthday: BlockHeight?,
         name: String,
         keySource: String?,
         completion: @escaping (Result<Initializer.InitializationResult, Error>) -> Void
@@ -173,4 +171,29 @@ public protocol ClosureSynchronizer {
     func wipe() -> CompletablePublisher<Error>
 
     func rescanFrom(height: BlockHeight, completion: @escaping (Error?) -> Void)
+}
+
+@available(*, deprecated)
+extension ClosureSynchronizer {
+    /// Compatibility shim for the pre-slipstream initialization API — see
+    /// `Synchronizer.prepare(with:walletBirthday:for:name:keySource:)`.
+    // swiftlint:disable function_parameter_count
+    @available(*, deprecated, message: "Use prepare(with:walletBirthday:name:keySource:completion:) — pass a nil birthday for a brand-new wallet.")
+    public func prepare(
+        with seed: [UInt8]?,
+        walletBirthday: BlockHeight,
+        for walletMode: WalletInitMode,
+        name: String,
+        keySource: String?,
+        completion: @escaping (Result<Initializer.InitializationResult, Error>) -> Void
+    ) {
+        prepare(
+            with: seed,
+            walletBirthday: walletMode == .newWallet ? nil : walletBirthday,
+            name: name,
+            keySource: keySource,
+            completion: completion
+        )
+    }
+    // swiftlint:enable function_parameter_count
 }
