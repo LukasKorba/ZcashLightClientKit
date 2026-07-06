@@ -21,6 +21,8 @@ public enum ZcashErrorCode: String {
     case initializerGeneralStorageCantCreate = "ZINIT0004"
     /// Can't set `isExcludedFromBackup` flag to `generalStorageURL`.
     case initializerCantSetNoBackupFlagToGeneralStorageURL = "ZINIT0005"
+    /// The seed passed to `prepare` does not match the seed-derived account(s) already stored in
+    case initializerSeedMismatch = "ZINIT0006"
     /// Unknown GRPC Service error
     case serviceUnknownError = "ZSRVC0001"
     /// LightWalletService.getInfo failed.
@@ -259,6 +261,16 @@ public enum ZcashErrorCode: String {
     case rustTruncateToChainState = "ZRUST0091"
     /// Error from rust layer when calling ZcashEip681Backend.parseTransactionRequest
     case rustEip681Parse = "ZRUST0092"
+    /// Failed to open the Slipstream engine handle via zcashlc_slipstream_open.
+    case rustSlipstreamOpen = "ZRUST0093"
+    /// Slipstream engine handle is nil (open was not called or failed).
+    case rustSlipstreamNotOpen = "ZRUST0094"
+    /// Failed to start a Slipstream sync pass via zcashlc_slipstream_start.
+    case rustSlipstreamStart = "ZRUST0095"
+    /// Slipstream sync pass failed during a polling tick.
+    case rustSlipstreamSyncFailed = "ZRUST0096"
+    /// Operation is not supported by `SlipstreamSynchronizer` (wipe / switchTo).
+    case rustSlipstreamUnsupported = "ZRUST0097"
     /// SQLite query failed when fetching all accounts from the database.
     case accountDAOGetAll = "ZADAO0001"
     /// Fetched accounts from SQLite but can't decode them.

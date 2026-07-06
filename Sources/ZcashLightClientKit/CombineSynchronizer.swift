@@ -24,8 +24,7 @@ public protocol CombineSynchronizer {
 
     func prepare(
         with seed: [UInt8]?,
-        walletBirthday: BlockHeight,
-        for walletMode: WalletInitMode,
+        walletBirthday: BlockHeight?,
         name: String,
         keySource: String?
     ) -> SinglePublisher<Initializer.InitializationResult, Error>
@@ -160,4 +159,25 @@ public protocol CombineSynchronizer {
     func wipe() -> CompletablePublisher<Error>
 
     func rescanFrom(height: BlockHeight) -> CompletablePublisher<Error>
+}
+
+@available(*, deprecated)
+extension CombineSynchronizer {
+    /// Compatibility shim for the pre-slipstream initialization API — see
+    /// `Synchronizer.prepare(with:walletBirthday:for:name:keySource:)`.
+    @available(*, deprecated, message: "Use prepare(with:walletBirthday:name:keySource:) — pass a nil birthday for a brand-new wallet.")
+    public func prepare(
+        with seed: [UInt8]?,
+        walletBirthday: BlockHeight,
+        for walletMode: WalletInitMode,
+        name: String,
+        keySource: String?
+    ) -> SinglePublisher<Initializer.InitializationResult, Error> {
+        prepare(
+            with: seed,
+            walletBirthday: walletMode == .newWallet ? nil : walletBirthday,
+            name: name,
+            keySource: keySource
+        )
+    }
 }
