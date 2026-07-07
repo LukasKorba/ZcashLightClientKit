@@ -116,6 +116,13 @@ if gh release view "$VERSION" --repo "$REPO" &>/dev/null; then
         "$PRODUCTS_DIR/$ZIP_FILE" \
         --repo "$REPO" \
         --clobber
+    # gh release upload can only replace assets, not release properties, so an
+    # existing release (e.g. one created before pre-release detection existed)
+    # needs an explicit edit to gain the pre-release bit.
+    if [[ ${#PRERELEASE_FLAG[@]} -gt 0 ]]; then
+        echo "Marking existing release ${VERSION} as a pre-release."
+        gh release edit "$VERSION" --repo "$REPO" "${PRERELEASE_FLAG[@]}"
+    fi
 else
     gh release create "$VERSION" \
         "$PRODUCTS_DIR/$ZIP_FILE" \
