@@ -9,6 +9,9 @@
 #   4. Writes release info to BuildSupport/products/release.env
 #   5. Outputs the values needed for Package.swift
 #
+# Versions with a SemVer pre-release suffix (e.g. 2.6.0-alpha.1, 2.7.0-rc.2)
+# are detected automatically and the GitHub release is marked as a pre-release.
+#
 # After running this script:
 #   1. Update Package.swift with the URL and checksum
 #   2. Commit the Package.swift change
@@ -49,7 +52,16 @@ REPO="zcash/zcash-swift-wallet-sdk"
 PRODUCTS_DIR="BuildSupport/products"
 ZIP_FILE="libzcashlc.xcframework.zip"
 
+# SemVer: a hyphen in the version (e.g. 2.6.0-alpha.1) marks a pre-release
+PRERELEASE_FLAG=()
+if [[ "$VERSION" == *-* ]]; then
+    PRERELEASE_FLAG=(--prerelease)
+fi
+
 echo "=== Preparing release ${VERSION} ==="
+if [[ ${#PRERELEASE_FLAG[@]} -gt 0 ]]; then
+    echo "Pre-release suffix detected. The GitHub release will be marked as a pre-release."
+fi
 echo ""
 
 # Check for uncommitted changes (skip in non-interactive mode, e.g. CI)
@@ -110,7 +122,8 @@ else
         --repo "$REPO" \
         --title "$VERSION" \
         --notes "Zcash Light Client SDK ${VERSION}" \
-        --draft
+        --draft \
+        "${PRERELEASE_FLAG[@]}"
 fi
 
 RELEASE_URL="https://github.com/${REPO}/releases/tag/${VERSION}"
