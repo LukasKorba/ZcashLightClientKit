@@ -3241,7 +3241,7 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 [[package]]
 name = "orchard"
 version = "0.14.0"
-source = "git+https://github.com/LukasKorba/slipstream?tag=v0.5.0#a393586599f78663d3b5364310f3ecd4340b8dba"
+source = "git+https://github.com/LukasKorba/slipstream?tag=v0.5.1#3bcc71323d84864e0ab31f982dccab7752591afa"
 dependencies = [
  "aes",
  "bitvec",
@@ -4723,8 +4723,8 @@ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
 
 [[package]]
 name = "slipstream-core"
-version = "0.5.0"
-source = "git+https://github.com/LukasKorba/slipstream?tag=v0.5.0#a393586599f78663d3b5364310f3ecd4340b8dba"
+version = "0.5.1"
+source = "git+https://github.com/LukasKorba/slipstream?tag=v0.5.1#3bcc71323d84864e0ab31f982dccab7752591afa"
 dependencies = [
  "ff",
  "futures-util",
@@ -4761,7 +4761,7 @@ dependencies = [
 [[package]]
 name = "slipstream-gpuhash"
 version = "0.0.1"
-source = "git+https://github.com/LukasKorba/slipstream?tag=v0.5.0#a393586599f78663d3b5364310f3ecd4340b8dba"
+source = "git+https://github.com/LukasKorba/slipstream?tag=v0.5.1#3bcc71323d84864e0ab31f982dccab7752591afa"
 dependencies = [
  "bytemuck",
  "ff",
@@ -7715,7 +7715,7 @@ dependencies = [
 [[package]]
 name = "zcash_note_encryption"
 version = "0.4.1"
-source = "git+https://github.com/LukasKorba/slipstream?tag=v0.5.0#a393586599f78663d3b5364310f3ecd4340b8dba"
+source = "git+https://github.com/LukasKorba/slipstream?tag=v0.5.1#3bcc71323d84864e0ab31f982dccab7752591afa"
 dependencies = [
  "chacha20",
  "chacha20poly1305",
