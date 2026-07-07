@@ -79,7 +79,7 @@ tracing-subscriber = "0.3"
 # Slipstream engine — the opt-in high-performance sync engine. The engine lives in its
 # own repository (https://github.com/LukasKorba/slipstream); the SDK references a tagged
 # release rather than carrying the code.
-slipstream-core = { git = "https://github.com/LukasKorba/slipstream", tag = "v0.5.0" }
+slipstream-core = { git = "https://github.com/LukasKorba/slipstream", tag = "v0.5.1" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
 
 # Tor
@@ -124,5 +124,5 @@ gpu = ["slipstream-core/gpu"]
 # byte-identical and KAT-gated in the forks' own test suites; these patch entries
 # disappear once the seams land in the upstream crates.
 [patch.crates-io]
-zcash_note_encryption = { git = "https://github.com/LukasKorba/slipstream", tag = "v0.5.0" }
-orchard = { git = "https://github.com/LukasKorba/slipstream", tag = "v0.5.0" }
+zcash_note_encryption = { git = "https://github.com/LukasKorba/slipstream", tag = "v0.5.1" }
+orchard = { git = "https://github.com/LukasKorba/slipstream", tag = "v0.5.1" }
