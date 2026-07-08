@@ -77,8 +77,8 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 
 # Slipstream engine — the opt-in high-performance sync engine. The engine lives in its
-# own repository (https://github.com/LukasKorba/slipstream); the SDK references a tagged
-# release rather than carrying the code. This overlay manifest (Cargo-slipstream.toml)
+# own repository, https://github.com/LukasKorba/slipstream (private; access available to
+# collaborators); the SDK references a tagged release rather than carrying the code. This overlay manifest (Cargo-slipstream.toml)
 # adds the private engine dependency and the vendored-fork patches below
 # ([patch.crates-io]); the SDK builds and runs fully without this overlay via the STUB
 # flavor (`rust/src/slipstream_ffi_stubs.rs` stands in for `rust/src/slipstream_ffi.rs`)
@@ -124,8 +124,10 @@ default = ["slipstream"]
 # Compiles `rust/src/slipstream_ffi.rs` (the real `zcashlc_slipstream_*` FFI surface)
 # against the `slipstream-core` engine crate. Off (`--no-default-features`) compiles
 # `rust/src/slipstream_ffi_stubs.rs` instead — same exported symbols and cbindgen
-# header (Gate 1a/1b), every entry point reports "engine not available" — so the crate
-# builds without access to the private slipstream-core repository.
+# header (Gate 1a/1b), every entry point reports "engine not available". Note: under
+# this overlay manifest the [patch.crates-io] entries are fetched regardless of
+# features; the committed public Cargo.toml is the manifest that builds with no
+# private access at all.
 slipstream = ["dep:slipstream-core"]
 
 # GPU Orchard subtree offload (experimental, default OFF — the released libzcashlc links
