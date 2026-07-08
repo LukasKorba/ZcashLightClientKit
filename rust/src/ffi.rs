@@ -333,12 +333,14 @@ impl Balance {
     }
 
     /// [Slipstream API v2] An all-zero pool balance.
+    #[cfg(feature = "slipstream")]
     pub(crate) fn zero() -> Self {
         Self { spendable_value: 0, change_pending_confirmation: 0, value_pending_spendability: 0 }
     }
 
     /// [Slipstream API v2] A pool balance carrying only a spendable value (the recovery
     /// override's single-number shape).
+    #[cfg(feature = "slipstream")]
     pub(crate) fn from_spendable(spendable_value: i64) -> Self {
         Self { spendable_value, change_pending_confirmation: 0, value_pending_spendability: 0 }
     }
@@ -379,6 +381,7 @@ impl AccountBalance {
 
     /// [Slipstream API v2 §0-5] The account's UUID bytes, for matching against
     /// `slipstream_v_recovery_balance.account_uuid`.
+    #[cfg(feature = "slipstream")]
     pub(crate) fn uuid_bytes(&self) -> &[u8; 16] {
         &self.account_uuid
     }
@@ -391,6 +394,7 @@ impl AccountBalance {
     /// collapsed for the duration of recovery (headline correctness over breakdown fidelity).
     /// Transparent is already folded into the delta sum, so `unshielded` is zeroed to avoid
     /// double-counting.
+    #[cfg(feature = "slipstream")]
     pub(crate) fn override_with_recovery_net(&mut self, net_zat: i64) {
         self.sapling_balance = Balance::zero();
         self.orchard_balance = Balance::from_spendable(net_zat.max(0));
@@ -503,6 +507,7 @@ impl WalletSummary {
     /// [Slipstream API v2 §0-5] Mutable view of the marshalled per-account balances, for the
     /// recovery override. Safe because the array was allocated by [`Self::some`] and is owned
     /// by this struct until [`zcashlc_free_wallet_summary`].
+    #[cfg(feature = "slipstream")]
     pub(crate) fn account_balances_mut(&mut self) -> &mut [AccountBalance] {
         if self.account_balances.is_null() {
             &mut []
