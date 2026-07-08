@@ -15,6 +15,8 @@
 set -e
 cd "$(dirname "$0")/.."
 
+echo "slipstream-ffi mode: $(./Scripts/slipstream-ffi-mode.sh status || echo UNKNOWN)"
+
 # Ensure cargo/rustup are on PATH (needed when invoked from Xcode)
 if [[ -f "$HOME/.cargo/env" ]]; then
     source "$HOME/.cargo/env"
