@@ -42,9 +42,10 @@ public actor SlipstreamSynchronizer: Synchronizer {
     /// with access to the private engine repository) or only the stub ABI (public flavor —
     /// every `zcashlc_slipstream_*` entry point reports "engine not available"). Apps can
     /// check this up front to decide whether to offer a `useSlipstream` toggle at all: on a
-    /// stub build `prepare()` always throws `ZcashError.slipstreamEngineUnavailable`, so
-    /// reading this flag lets the UI branch (hide/disable the toggle) instead of hitting
-    /// that throw at runtime. The classic `SDKSynchronizer` sync path is unaffected either way.
+    /// stub build `prepare()` — and any actual `switchTo(endpoint:)` — always throws
+    /// `ZcashError.slipstreamEngineUnavailable`, so reading this flag lets the UI branch
+    /// (hide/disable the toggle) instead of hitting that throw at runtime. The classic
+    /// `SDKSynchronizer` sync path is unaffected either way.
     public static var isEngineAvailable: Bool { SlipstreamFFI.isEngineAvailable }
 
     // ── Alias ──────────────────────────────────────────────────────────────────
@@ -1109,6 +1110,15 @@ public actor SlipstreamSynchronizer: Synchronizer {
                 file: #file, function: #function, line: #line
             )
             return
+        }
+
+        // [P3] An actual switch reaches `engine.reopen()` → `zcashlc_slipstream_open`
+        // unconditionally below — fail fast with the friendly error on stub-flavor builds
+        // (same contract as `prepare`) instead of leaking a raw `rustSlipstreamOpen`.
+        // Deliberately AFTER the F2 no-op check: switching to the endpoint already in use
+        // performs no engine work on any flavor, so it stays a successful no-op.
+        guard SlipstreamFFI.isEngineAvailable else {
+            throw ZcashError.slipstreamEngineUnavailable
         }
 
         let wasRunning = isRunning

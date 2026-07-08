@@ -924,4 +924,36 @@ class SlipstreamOfflineTests: ZcashTestCase {
         )
     }
 
+    /// The graceful stub-flavor failure itself (`ZSLST0001`): on a stub-flavor binary BOTH
+    /// engine-lifecycle entry points — `prepare(...)` and `switchTo(endpoint:)` — must throw
+    /// `ZcashError.slipstreamEngineUnavailable` as their FIRST act (no wallet-DB writes, no
+    /// raw `rustSlipstreamOpen` leaking out). Inverse-gated: this is the one test that only
+    /// runs against the STUB binary (zcash CI's flavor), so the graceful-failure path has
+    /// real coverage exactly where it matters; on a FULL binary the guards no-op and the
+    /// test skips.
+    func testPrepareAndSwitchToThrowEngineUnavailableOnStubFlavor() async throws {
+        try XCTSkipIf(SlipstreamFFI.isEngineAvailable, "full-flavor libzcashlc binary — slipstream engine present")
+        let sync = SlipstreamSynchronizer(initializer: try makeInitializer())
+
+        do {
+            _ = try await sync.prepare(with: nil, walletBirthday: nil, name: "test", keySource: nil)
+            XCTFail("prepare() must throw on a stub-flavor binary")
+        } catch let error as ZcashError {
+            XCTAssertEqual(error.code, .slipstreamEngineUnavailable,
+                           "Expected slipstreamEngineUnavailable from prepare(), got \(error.code)")
+        } catch {
+            XCTFail("Expected ZcashError.slipstreamEngineUnavailable from prepare(), got \(error)")
+        }
+
+        do {
+            try await sync.switchTo(endpoint: LightWalletEndpoint(address: "zec.rocks", port: 443, secure: true))
+            XCTFail("switchTo() must throw on a stub-flavor binary")
+        } catch let error as ZcashError {
+            XCTAssertEqual(error.code, .slipstreamEngineUnavailable,
+                           "Expected slipstreamEngineUnavailable from switchTo(), got \(error.code)")
+        } catch {
+            XCTFail("Expected ZcashError.slipstreamEngineUnavailable from switchTo(), got \(error)")
+        }
+    }
+
 }
