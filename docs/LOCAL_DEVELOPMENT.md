@@ -198,7 +198,7 @@ who you are:
 
 | You are... | Use | Needs |
 |---|---|---|
-| An app depending on this SDK | `.package(url: "https://github.com/<org>/<private-ffi-repo>.git", exact: "<version>")` | `~/.netrc` (or keychain) with a PAT |
+| An app depending on this SDK | `.package(url: "git@github.com:<org>/<private-ffi-repo>.git", exact: "<version>")` | ssh access to the repo + `~/.netrc` with a PAT (binary download) |
 | An SDK collaborator not touching Rust | `./Scripts/init-local-ffi.sh --cached-full` | `gh auth` access to the private FFI repo only |
 | An SDK collaborator building the engine from source | `./Scripts/slipstream-ffi-mode.sh enable` + `init-local-ffi.sh` | git access to the private *engine* repo |
 
@@ -228,13 +228,22 @@ semver tag `<version>` directly to the private FFI asset repo, with `Package.swi
 other SwiftPM package dependency:
 
 ```swift
-.package(url: "https://github.com/LukasKorba/zcash-sdk-private-ffi.git", exact: "2.6.0-alpha.6")
+.package(url: "git@github.com:LukasKorba/zcash-sdk-private-ffi.git", exact: "2.6.0-alpha.6")
 ```
 
 `Package.resolved` pins the exact commit, same as any other tag dependency.
 
-SwiftPM authenticates binary-target downloads from private GitHub releases via
-`~/.netrc`:
+Two separate authentications are involved, because SwiftPM handles them differently:
+
+1. **Cloning the private package repo (git).** Uses git's own credential system, NOT
+   SwiftPM's netrc. The ssh URL form above (with your ssh key authorized for the repo)
+   is what our distribution gates verify end-to-end. If you must use the
+   `https://github.com/...` URL form instead (common in CI), git needs an HTTPS
+   credential for `github.com` — either a credential helper, or an additional netrc
+   line (git reads netrc too): `machine github.com login <user> password <PAT>` (the
+   same fine-grained PAT works as a git-over-HTTPS password).
+2. **Downloading the binaryTarget zip from the private release.** SwiftPM authenticates
+   this via `~/.netrc`:
 
 ```
 machine api.github.com login <your-github-username> password <fine-grained-PAT>
@@ -257,6 +266,9 @@ prebuilt binaries," never "someone can read the engine source."
 
 **App CI:** inject `~/.netrc` from a secret at build/checkout time (e.g. a setup step
 that writes it before `xcodebuild`/`swift build` run) — don't commit it to the repo.
+If CI resolves the package over HTTPS rather than ssh, the injected netrc needs BOTH
+lines (`machine github.com` for the git clone, `machine api.github.com` for the binary
+download), per the authentication split above.
 
 ### 2. SDK collaborator: `--cached-full` (no Rust toolchain)
 
