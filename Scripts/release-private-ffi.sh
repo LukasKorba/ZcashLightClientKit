@@ -6,8 +6,13 @@
 # This is the private-distribution twin of prepare-release.sh: same build + zip +
 # checksum shape, but it publishes to a private, asset-only repo instead of the public
 # SDK repo. Unlike prepare-release.sh, it does NOT create a release branch or touch
-# this repo's Package.swift -- wiring up a consumer branch is cut-private-release.sh's
+# this repo's Package.swift -- wiring up a consumer tag is cut-private-release.sh's
 # job, run separately (it's the thing that actually points at a specific asset).
+#
+# This repo carries two kinds of tag per version: this script creates the release/
+# asset-anchor tag `ffi-<version>` (below); cut-private-release.sh separately creates
+# the plain `<version>` tag that SwiftPM consumers depend on, pointing at a commit whose
+# Package.swift references the asset this script just published.
 #
 # Flow:
 #   1. Verify access to $PRIVATE_FFI_REPO (require_private_ffi_access) -- before
@@ -21,11 +26,11 @@
 #      flavor, since the manifest now pulls in the real slipstream-core engine).
 #   5. zip + sha256 the xcframework.
 #   6. gh release create (or --clobber upload with --force-overwrite-existing-release)
-#      on $PRIVATE_FFI_REPO, tag == version.
+#      on $PRIVATE_FFI_REPO, tag == ffi-<version> (the asset-anchor tag).
 #   7. Read back the numeric asset ID -- the URL SwiftPM needs encodes this ID, not the
 #      tag or filename, and it changes on every re-upload (spec risk 7).
-#   8. Write BuildSupport/products/private-release.env and print the Package.swift
-#      snippet plus the cut-private-release.sh next step.
+#   8. Write BuildSupport/products/private-release.env (including the ffi-<version> tag)
+#      and print the Package.swift snippet plus the cut-private-release.sh next step.
 #
 # Options:
 #   --force-overwrite-existing-release  Allow overwriting an existing release (--clobber).
@@ -58,11 +63,15 @@ if [[ -z "${1:-}" ]]; then
 fi
 
 VERSION="$1"
+# The release/asset-anchor tag is "ffi-<version>", distinct from the plain "<version>"
+# tag cut-private-release.sh creates for SwiftPM consumers -- keeping the two apart
+# means the SPM-consumable tag never has to be a valid release (it's just a commit).
+RELEASE_TAG="ffi-${VERSION}"
 PRODUCTS_DIR="BuildSupport/products"
 ZIP_FILE="libzcashlc.xcframework.zip"
 ENV_FILE="$PRODUCTS_DIR/private-release.env"
 
-echo "=== Preparing private FULL-flavor release ${VERSION} (repo: $PRIVATE_FFI_REPO) ==="
+echo "=== Preparing private FULL-flavor release ${VERSION} (tag: ${RELEASE_TAG}, repo: $PRIVATE_FFI_REPO) ==="
 echo ""
 
 require_private_ffi_access
@@ -117,31 +126,31 @@ cd ../..
 echo ""
 echo "=== Uploading to GitHub ($PRIVATE_FFI_REPO) ==="
 
-if gh release view "$VERSION" --repo "$PRIVATE_FFI_REPO" &>/dev/null; then
+if gh release view "$RELEASE_TAG" --repo "$PRIVATE_FFI_REPO" &>/dev/null; then
     if [[ "$FORCE_OVERWRITE" != "true" ]]; then
-        echo "Error: Release $VERSION already exists on $PRIVATE_FFI_REPO."
+        echo "Error: Release $RELEASE_TAG already exists on $PRIVATE_FFI_REPO."
         echo "Use --force-overwrite-existing-release to update an existing release."
         exit 1
     fi
-    echo "Release $VERSION already exists. Updating assets (--force-overwrite-existing-release)..."
-    gh release upload "$VERSION" \
+    echo "Release $RELEASE_TAG already exists. Updating assets (--force-overwrite-existing-release)..."
+    gh release upload "$RELEASE_TAG" \
         "$PRODUCTS_DIR/$ZIP_FILE" \
         --repo "$PRIVATE_FFI_REPO" \
         --clobber
 else
-    gh release create "$VERSION" \
+    gh release create "$RELEASE_TAG" \
         "$PRODUCTS_DIR/$ZIP_FILE" \
         --repo "$PRIVATE_FFI_REPO" \
-        --title "$VERSION" \
+        --title "${VERSION} (FULL FFI)" \
         --notes "libzcashlc FULL-flavor xcframework ${VERSION}"
 fi
 
 # The numeric asset ID is what the SwiftPM-consumable URL encodes. Re-uploading
 # (--clobber) changes it, which is why cut-private-release.sh always re-reads it
 # rather than assuming it's stable across releases (spec risk 7).
-ASSET_ID=$(gh api "repos/$PRIVATE_FFI_REPO/releases/tags/$VERSION" --jq '.assets[] | select(.name=="'"$ZIP_FILE"'") | .id')
+ASSET_ID=$(gh api "repos/$PRIVATE_FFI_REPO/releases/tags/$RELEASE_TAG" --jq '.assets[] | select(.name=="'"$ZIP_FILE"'") | .id')
 if [[ -z "$ASSET_ID" ]]; then
-    echo "Error: could not find the uploaded asset ID for $ZIP_FILE on release $VERSION." >&2
+    echo "Error: could not find the uploaded asset ID for $ZIP_FILE on release $RELEASE_TAG." >&2
     exit 1
 fi
 ASSET_URL="https://api.github.com/repos/${PRIVATE_FFI_REPO}/releases/assets/${ASSET_ID}.zip"
@@ -149,12 +158,13 @@ ASSET_URL="https://api.github.com/repos/${PRIVATE_FFI_REPO}/releases/assets/${AS
 mkdir -p "$PRODUCTS_DIR"
 cat > "$ENV_FILE" << EOF
 VERSION=${VERSION}
+RELEASE_TAG=${RELEASE_TAG}
 ASSET_ID=${ASSET_ID}
 ASSET_URL=${ASSET_URL}
 CHECKSUM=${CHECKSUM}
 EOF
 
-RELEASE_URL="https://github.com/${PRIVATE_FFI_REPO}/releases/tag/${VERSION}"
+RELEASE_URL="https://github.com/${PRIVATE_FFI_REPO}/releases/tag/${RELEASE_TAG}"
 
 echo ""
 echo "=========================================="
@@ -164,7 +174,7 @@ echo "  Wrote ${ENV_FILE}"
 echo "=========================================="
 echo ""
 echo "Package.swift binaryTarget snippet (for reference only -- cut-private-release.sh"
-echo "writes this onto a private-release/* branch for you):"
+echo "writes this onto the ${VERSION} tag for you):"
 echo ""
 echo "   .binaryTarget("
 echo "       name: \"libzcashlc\","
@@ -172,6 +182,6 @@ echo "       url: \"${ASSET_URL}\","
 echo "       checksum: \"${CHECKSUM}\""
 echo "   ),"
 echo ""
-echo "Next step:"
+echo "Next step (creates the SwiftPM-consumable '${VERSION}' tag on $PRIVATE_FFI_REPO):"
 echo "   PRIVATE_FFI_REPO=${PRIVATE_FFI_REPO} ./Scripts/cut-private-release.sh ${VERSION}"
 echo ""

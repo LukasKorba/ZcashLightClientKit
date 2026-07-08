@@ -192,33 +192,46 @@ default — every `slipstream_*` FFI entry point reports "engine not available")
 **FULL** (the real slipstream engine compiled in). Building FULL from source requires
 git access to the private slipstream engine repository (`Scripts/slipstream-ffi-mode.sh
 enable`, above). If you don't need to touch Rust at all, prebuilt FULL-flavor
-XCFrameworks are also published as releases on a private, asset-only GitHub repo
-(`$PRIVATE_FFI_REPO`, defined in `Scripts/private-ffi-common.sh`) — three ways to
-consume one, depending on who you are:
+XCFrameworks are also published on a dedicated private GitHub repo (`$PRIVATE_FFI_REPO`,
+defined in `Scripts/private-ffi-common.sh`) — three ways to consume one, depending on
+who you are:
 
 | You are... | Use | Needs |
 |---|---|---|
-| An app depending on this SDK | `.package(url: "<fork>", branch: "private-release/<version>")` | `~/.netrc` (or keychain) with a PAT |
+| An app depending on this SDK | `.package(url: "https://github.com/<org>/<private-ffi-repo>.git", exact: "<version>")` | `~/.netrc` (or keychain) with a PAT |
 | An SDK collaborator not touching Rust | `./Scripts/init-local-ffi.sh --cached-full` | `gh auth` access to the private FFI repo only |
 | An SDK collaborator building the engine from source | `./Scripts/slipstream-ffi-mode.sh enable` + `init-local-ffi.sh` | git access to the private *engine* repo |
 
 Note the two different private repos involved: the FFI **asset** repo (prebuilt
-binaries only) and the engine **source** repo (`LukasKorba/slipstream`, used by
-`slipstream-ffi-mode.sh`). They are deliberately separate — see the PAT guidance below.
+binaries and the version tags below) and the engine **source** repo
+(`LukasKorba/slipstream`, used by `slipstream-ffi-mode.sh`). They are deliberately
+separate — see the PAT guidance below.
 
-### 1. App: consume a `private-release/*` branch
+`$PRIVATE_FFI_REPO` carries two kinds of tag per version, created by two different
+scripts:
 
-`Scripts/cut-private-release.sh` (run by whoever manages FFI releases) publishes
-branches named `private-release/<version>` that point this fork's `Package.swift`
-`libzcashlc` binaryTarget at a specific private release asset. Depend on one directly:
+| Tag | Created by | Purpose |
+|---|---|---|
+| `ffi-<version>` | `release-private-ffi.sh` | Release/asset-anchor tag. Hosts the built `libzcashlc.xcframework.zip`. |
+| `<version>` | `cut-private-release.sh` | Plain semver git tag, SPM-consumable. Points at a commit whose tree matches this fork at that version, except `Package.swift`'s `libzcashlc` binaryTarget url+checksum, which reference the `ffi-<version>` release asset. |
+
+An asset re-upload changes the numeric asset ID (and so the checksum consumers must
+verify against), which invalidates any `<version>` tag that already pointed at the old
+one. Re-cutting after that requires `cut-private-release.sh <version> --force-retag`,
+since the script otherwise refuses to overwrite an existing remote tag.
+
+### 1. App: consume a version tag
+
+`Scripts/cut-private-release.sh` (run by whoever manages FFI releases) pushes a plain
+semver tag `<version>` directly to the private FFI asset repo, with `Package.swift`'s
+`libzcashlc` binaryTarget pointed at that version's release asset. Depend on it like any
+other SwiftPM package dependency:
 
 ```swift
-.package(url: "git@github.com:LukasKorba/ZcashLightClientKit.git", branch: "private-release/2.6.0-alpha.6")
+.package(url: "https://github.com/LukasKorba/zcash-sdk-private-ffi.git", exact: "2.6.0-alpha.6")
 ```
 
-`Package.resolved` pins the exact commit, so this is as reproducible as depending on a
-tag. Branches are used instead of semver build-metadata tags (e.g.
-`2.6.0-alpha.6+slipstream`) because SwiftPM's handling of those is quirky.
+`Package.resolved` pins the exact commit, same as any other tag dependency.
 
 SwiftPM authenticates binary-target downloads from private GitHub releases via
 `~/.netrc`:
@@ -251,10 +264,10 @@ that writes it before `xcodebuild`/`swift build` run) — don't commit it to the
 ./Scripts/init-local-ffi.sh --cached-full 2.6.0-alpha.6
 ```
 
-Downloads the same private-release XCFramework straight into `LocalPackages/` —
-equivalent to `--cached`, but from the private FFI asset repo instead of the public SDK
-release. This only needs `gh auth` access to that repo: no netrc, no Rust toolchain, no
-engine-source access. Omit the version to reuse the one recorded in
+Downloads the private-release XCFramework straight into `LocalPackages/` — equivalent to
+`--cached`, but from the private FFI asset repo's `ffi-<version>` release instead of the
+public SDK release. This only needs `gh auth` access to that repo: no netrc, no Rust
+toolchain, no engine-source access. Omit the version to reuse the one recorded in
 `BuildSupport/products/private-release.env` (written by `release-private-ffi.sh` if you
 just cut a release yourself).
 
@@ -272,18 +285,22 @@ PRIVATE_FFI_REPO=<owner>/<repo> ./Scripts/cut-private-release.sh 2.6.0-alpha.6
 ```
 
 `release-private-ffi.sh` builds all 5 architectures in FULL mode — restoring whichever
-slipstream-ffi mode was active before it ran, even on failure — and publishes the zip to
-`$PRIVATE_FFI_REPO` (default in `Scripts/private-ffi-common.sh`, override via the
-environment, e.g. for testing against a scratch repo). `cut-private-release.sh`
-re-downloads that same zip, checksums it itself (never trusting the checksum in release
-metadata), and rewrites + pushes the `private-release/<version>` branch described above.
+slipstream-ffi mode was active before it ran, even on failure — and publishes the zip as
+release `ffi-2.6.0-alpha.6` on `$PRIVATE_FFI_REPO` (default in
+`Scripts/private-ffi-common.sh`, override via the environment, e.g. for testing against
+a scratch repo). `cut-private-release.sh` re-downloads that same zip, checksums it itself
+(never trusting the checksum in release metadata), and pushes a commit with the patched
+`Package.swift` directly to the `2.6.0-alpha.6` tag on `$PRIVATE_FFI_GIT_URL` (derived
+from `$PRIVATE_FFI_REPO`; see `Scripts/private-ffi-common.sh`) — no local branch, and no
+push to this repo's own `origin`. Re-cutting after a checksum-affecting re-upload needs
+`--force-retag`.
 
 ### Troubleshooting
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | SwiftPM / `gh` / `xcodebuild` reports 404 fetching the asset | No access to the private repo, an expired/wrong PAT, or a stale asset ID | Confirm `gh api repos/<owner>/<repo>` succeeds for your account; regenerate the PAT; re-run `cut-private-release.sh` to re-read the current asset ID |
-| SwiftPM fails with a checksum mismatch | The release asset was re-uploaded (its numeric asset ID and content changed, but a `private-release/*` branch still points at the old checksum/ID — an asset re-upload always invalidates the branch that referenced it) | Recut the branch (`cut-private-release.sh <version>`) and have consumers re-resolve packages |
+| SwiftPM fails with a checksum mismatch | The release asset was re-uploaded (its numeric asset ID and content changed, but the `<version>` tag still points at the old checksum/ID — an asset re-upload always invalidates the tag that referenced it) | Recut the tag (`cut-private-release.sh <version> --force-retag`) and have consumers re-resolve packages |
 | Stale/corrupted resolve after switching versions or flavors | SwiftPM's or Xcode's local package cache still has the old artifact | Purge the cache: delete `.build/` in a SwiftPM-only checkout (or whatever directory you passed to `--cache-path`/`--scratch-path`), or in Xcode: File > Packages > Reset Package Caches (see the general Troubleshooting section below for `DerivedData` too) |
 
 ## Troubleshooting

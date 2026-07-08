@@ -15,7 +15,10 @@
 #                 instead of building. Collaborator path: no Rust toolchain, no netrc --
 #                 just `gh auth` access to the private repo. <version> defaults to the
 #                 VERSION recorded in BuildSupport/products/private-release.env (written
-#                 by release-private-ffi.sh) when omitted.
+#                 by release-private-ffi.sh) when omitted. Downloads from that version's
+#                 release tag `ffi-<version>` (honoring the RELEASE_TAG recorded in
+#                 private-release.env when present, in case that convention ever
+#                 changes; otherwise derived as `ffi-<version>`).
 #
 #                 Checksum verification: if private-release.env is present AND its
 #                 VERSION matches, the download is verified against its CHECKSUM.
@@ -62,10 +65,11 @@ Options:
   --cached      Download the pre-built release XCFramework instead of building.
   --cached-full [<version>]
                 Download a prebuilt FULL-flavor XCFramework from the private FFI asset
-                repo instead of building (requires gh access; no Rust toolchain, no
-                netrc). <version> defaults to BuildSupport/products/private-release.env
-                when omitted. Verifies against that file's CHECKSUM if it matches the
-                requested version, else proceeds TOFU and prints the computed sha256.
+                repo's `ffi-<version>` release tag instead of building (requires gh
+                access; no Rust toolchain, no netrc). <version> defaults to
+                BuildSupport/products/private-release.env when omitted. Verifies
+                against that file's CHECKSUM if it matches the requested version, else
+                proceeds TOFU and prints the computed sha256.
 
 Creates LocalPackages/ with a locally-built xcframework. Package.swift detects
 LocalPackages/ and uses it instead of the released binary.
@@ -252,9 +256,11 @@ elif [[ "$BUILD_MODE" == "cached-full" ]]; then
     ENV_FILE="BuildSupport/products/private-release.env"
     ENV_VERSION=""
     ENV_CHECKSUM=""
+    ENV_RELEASE_TAG=""
     if [[ -f "$ENV_FILE" ]]; then
         ENV_VERSION=$(grep '^VERSION=' "$ENV_FILE" | cut -d= -f2-)
         ENV_CHECKSUM=$(grep '^CHECKSUM=' "$ENV_FILE" | cut -d= -f2-)
+        ENV_RELEASE_TAG=$(grep '^RELEASE_TAG=' "$ENV_FILE" | cut -d= -f2-)
     fi
 
     FULL_VERSION="$CACHED_FULL_VERSION"
@@ -265,10 +271,20 @@ elif [[ "$BUILD_MODE" == "cached-full" ]]; then
         usage "No version given and $ENV_FILE not found. Usage: --cached-full <version>, or run release-private-ffi.sh first to populate $ENV_FILE."
     fi
 
-    echo "Version: $FULL_VERSION"
+    # The asset lives on the release tag "ffi-<version>", not "<version>" itself (that
+    # plain tag is the separate SPM-consumable one cut-private-release.sh creates).
+    # Honor the RELEASE_TAG recorded in private-release.env when it matches the
+    # requested version, in case the "ffi-" prefix convention ever changes; otherwise
+    # derive it.
+    RELEASE_TAG="ffi-${FULL_VERSION}"
+    if [[ -n "$ENV_RELEASE_TAG" && "$ENV_VERSION" == "$FULL_VERSION" ]]; then
+        RELEASE_TAG="$ENV_RELEASE_TAG"
+    fi
+
+    echo "Version: $FULL_VERSION (release tag: $RELEASE_TAG)"
 
     mkdir -p LocalPackages
-    gh release download "$FULL_VERSION" \
+    gh release download "$RELEASE_TAG" \
         --repo "$PRIVATE_FFI_REPO" \
         --pattern "libzcashlc.xcframework.zip" \
         --dir LocalPackages
