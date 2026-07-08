@@ -1,5 +1,5 @@
 # Shared config for the private FFI distribution scripts.
-# Sourced by: release-private-ffi.sh, cut-private-release.sh, init-local-ffi.sh (--cached-full).
+# Sourced by: release-private-ffi.sh, publish-private-sdk-tag.sh, init-local-ffi.sh (--cached-full).
 # Not meant to be executed directly -- it has no shebang and is not chmod +x.
 #
 # This file must NOT set shell options (set -e/-u/pipefail) itself: sourcing it must
@@ -14,7 +14,7 @@
 # future rename) never need to touch the scripts themselves.
 PRIVATE_FFI_REPO="${PRIVATE_FFI_REPO:-LukasKorba/zcash-sdk-private-ffi}"
 
-# PRIVATE_FFI_GIT_URL is where cut-private-release.sh pushes the SPM-consumable
+# PRIVATE_FFI_GIT_URL is where publish-private-sdk-tag.sh pushes the SPM-consumable
 # <version> tag. It defaults to the ssh form of PRIVATE_FFI_REPO -- git push needs a
 # URL, not an "owner/repo" pair, and ssh matches how a maintainer's `gh`/git is already
 # authenticated. Override independently of PRIVATE_FFI_REPO when a gate (or a future

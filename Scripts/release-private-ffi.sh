@@ -6,11 +6,11 @@
 # This is the private-distribution twin of prepare-release.sh: same build + zip +
 # checksum shape, but it publishes to a private, asset-only repo instead of the public
 # SDK repo. Unlike prepare-release.sh, it does NOT create a release branch or touch
-# this repo's Package.swift -- wiring up a consumer tag is cut-private-release.sh's
+# this repo's Package.swift -- wiring up a consumer tag is publish-private-sdk-tag.sh's
 # job, run separately (it's the thing that actually points at a specific asset).
 #
 # This repo carries two kinds of tag per version: this script creates the release/
-# asset-anchor tag `ffi-<version>` (below); cut-private-release.sh separately creates
+# asset-anchor tag `ffi-<version>` (below); publish-private-sdk-tag.sh separately creates
 # the plain `<version>` tag that SwiftPM consumers depend on, pointing at a commit whose
 # Package.swift references the asset this script just published.
 #
@@ -30,7 +30,7 @@
 #   7. Read back the numeric asset ID -- the URL SwiftPM needs encodes this ID, not the
 #      tag or filename, and it changes on every re-upload (spec risk 7).
 #   8. Write BuildSupport/products/private-release.env (including the ffi-<version> tag)
-#      and print the Package.swift snippet plus the cut-private-release.sh next step.
+#      and print the Package.swift snippet plus the publish-private-sdk-tag.sh next step.
 #
 # Options:
 #   --force-overwrite-existing-release  Allow overwriting an existing release (--clobber).
@@ -64,7 +64,7 @@ fi
 
 VERSION="$1"
 # The release/asset-anchor tag is "ffi-<version>", distinct from the plain "<version>"
-# tag cut-private-release.sh creates for SwiftPM consumers -- keeping the two apart
+# tag publish-private-sdk-tag.sh creates for SwiftPM consumers -- keeping the two apart
 # means the SPM-consumable tag never has to be a valid release (it's just a commit).
 RELEASE_TAG="ffi-${VERSION}"
 PRODUCTS_DIR="BuildSupport/products"
@@ -146,7 +146,7 @@ else
 fi
 
 # The numeric asset ID is what the SwiftPM-consumable URL encodes. Re-uploading
-# (--clobber) changes it, which is why cut-private-release.sh always re-reads it
+# (--clobber) changes it, which is why publish-private-sdk-tag.sh always re-reads it
 # rather than assuming it's stable across releases (spec risk 7).
 ASSET_ID=$(gh api "repos/$PRIVATE_FFI_REPO/releases/tags/$RELEASE_TAG" --jq '.assets[] | select(.name=="'"$ZIP_FILE"'") | .id')
 if [[ -z "$ASSET_ID" ]]; then
@@ -173,7 +173,7 @@ echo "  Asset ID: ${ASSET_ID}"
 echo "  Wrote ${ENV_FILE}"
 echo "=========================================="
 echo ""
-echo "Package.swift binaryTarget snippet (for reference only -- cut-private-release.sh"
+echo "Package.swift binaryTarget snippet (for reference only -- publish-private-sdk-tag.sh"
 echo "writes this onto the ${VERSION} tag for you):"
 echo ""
 echo "   .binaryTarget("
@@ -183,5 +183,5 @@ echo "       checksum: \"${CHECKSUM}\""
 echo "   ),"
 echo ""
 echo "Next step (creates the SwiftPM-consumable '${VERSION}' tag on $PRIVATE_FFI_REPO):"
-echo "   PRIVATE_FFI_REPO=${PRIVATE_FFI_REPO} ./Scripts/cut-private-release.sh ${VERSION}"
+echo "   PRIVATE_FFI_REPO=${PRIVATE_FFI_REPO} ./Scripts/publish-private-sdk-tag.sh ${VERSION}"
 echo ""

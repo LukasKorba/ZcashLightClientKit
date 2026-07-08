@@ -2,7 +2,7 @@
 # Push a version tag (SwiftPM-consumable) to the private FFI asset repo
 # ($PRIVATE_FFI_REPO, see private-ffi-common.sh) that points this fork's Package.swift
 # libzcashlc binaryTarget at a FULL-flavor release published by release-private-ffi.sh.
-# Usage: ./Scripts/cut-private-release.sh <version> [--base <ref>] [--no-push] [--force-retag]
+# Usage: ./Scripts/publish-private-sdk-tag.sh <version> [--base <ref>] [--no-push] [--force-retag]
 #
 # This does NOT rebuild anything -- it downloads the already-published zip (to compute
 # an independently-verified checksum; NEVER trust the checksum in release notes or API
@@ -19,7 +19,7 @@
 # Consumers depend on this fork like this:
 #   .package(url: "https://github.com/<org>/<private-ffi-repo>.git", exact: "<version>")
 # `Package.resolved` pins the exact commit, so this is as reproducible as any other
-# SwiftPM tag dependency. Re-cutting after a checksum-affecting re-upload (asset
+# SwiftPM tag dependency. Re-publishing the tag after a checksum-affecting re-upload (asset
 # re-upload changes the numeric asset ID -- spec risk 7) requires --force-retag: this
 # script refuses to overwrite an existing remote <version> tag otherwise.
 #
@@ -52,7 +52,7 @@ usage() {
         echo "" >&2
     fi
     cat >&2 << 'USAGEEOF'
-Usage: ./Scripts/cut-private-release.sh <version> [--base <ref>] [--no-push] [--force-retag]
+Usage: ./Scripts/publish-private-sdk-tag.sh <version> [--base <ref>] [--no-push] [--force-retag]
 
   <version>        Tag of an existing release `ffi-<version>` on $PRIVATE_FFI_REPO
                    (published by release-private-ffi.sh).
@@ -228,14 +228,14 @@ EOF
 NEW_COMMIT_SHA=$(git rev-parse HEAD)
 
 if [[ "$NO_PUSH" != "true" ]]; then
-    # Refuse to silently overwrite an existing remote <version> tag -- a re-cut after an
+    # Refuse to silently overwrite an existing remote <version> tag -- a re-publish after an
     # asset re-upload changes the checksum/asset ID (spec risk 7), so overwriting is
     # sometimes exactly right, but it must be deliberate.
     EXISTING_TAG_SHA=$(git ls-remote "$PRIVATE_FFI_GIT_URL" "refs/tags/${VERSION}" | awk '{print $1}')
     if [[ -n "$EXISTING_TAG_SHA" && "$FORCE_RETAG" != "true" ]]; then
         echo "" >&2
         echo "Error: tag ${VERSION} already exists on ${PRIVATE_FFI_GIT_URL} (${EXISTING_TAG_SHA})." >&2
-        echo "Re-cutting after an asset re-upload changes the checksum/asset ID, so the existing" >&2
+        echo "Re-publishing after an asset re-upload changes the checksum/asset ID, so the existing" >&2
         echo "tag would go on pointing at stale content. Pass --force-retag to overwrite it" >&2
         echo "deliberately." >&2
         exit 1
@@ -253,7 +253,7 @@ if [[ "$NO_PUSH" != "true" ]]; then
         echo "Error: push rejected." >&2
         if [[ "$FORCE_RETAG" != "true" ]]; then
             echo "If ${VERSION} already exists on ${PRIVATE_FFI_GIT_URL} with different content" >&2
-            echo "(e.g. you're recutting after a checksum-affecting re-upload -- spec risk 7)," >&2
+            echo "(e.g. you're re-publishing the tag after a checksum-affecting re-upload -- spec risk 7)," >&2
             echo "re-run with --force-retag." >&2
         fi
         exit 1
@@ -267,7 +267,7 @@ else
         echo "  git push --force ${PRIVATE_FFI_GIT_URL} ${NEW_COMMIT_SHA}:refs/tags/${VERSION}"
     else
         echo "  git push ${PRIVATE_FFI_GIT_URL} ${NEW_COMMIT_SHA}:refs/tags/${VERSION}"
-        echo "(add --force before the URL if ${VERSION} already exists remotely and this is a deliberate re-cut)"
+        echo "(add --force before the URL if ${VERSION} already exists remotely and this is a deliberate re-publish)"
     fi
 fi
 

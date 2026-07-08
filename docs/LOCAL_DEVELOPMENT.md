@@ -213,16 +213,16 @@ scripts:
 | Tag | Created by | Purpose |
 |---|---|---|
 | `ffi-<version>` | `release-private-ffi.sh` | Release/asset-anchor tag. Hosts the built `libzcashlc.xcframework.zip`. |
-| `<version>` | `cut-private-release.sh` | Plain semver git tag, SPM-consumable. Points at a commit whose tree matches this fork at that version, except `Package.swift`'s `libzcashlc` binaryTarget url+checksum, which reference the `ffi-<version>` release asset. |
+| `<version>` | `publish-private-sdk-tag.sh` | Plain semver git tag, SPM-consumable. Points at a commit whose tree matches this fork at that version, except `Package.swift`'s `libzcashlc` binaryTarget url+checksum, which reference the `ffi-<version>` release asset. |
 
 An asset re-upload changes the numeric asset ID (and so the checksum consumers must
 verify against), which invalidates any `<version>` tag that already pointed at the old
-one. Re-cutting after that requires `cut-private-release.sh <version> --force-retag`,
+one. Re-publishing the tag after that requires `publish-private-sdk-tag.sh <version> --force-retag`,
 since the script otherwise refuses to overwrite an existing remote tag.
 
 ### 1. App: consume a version tag
 
-`Scripts/cut-private-release.sh` (run by whoever manages FFI releases) pushes a plain
+`Scripts/publish-private-sdk-tag.sh` (run by whoever manages FFI releases) pushes a plain
 semver tag `<version>` directly to the private FFI asset repo, with `Package.swift`'s
 `libzcashlc` binaryTarget pointed at that version's release asset. Depend on it like any
 other SwiftPM package dependency:
@@ -293,26 +293,26 @@ repo rather than the FFI asset repo.
 
 ```bash
 PRIVATE_FFI_REPO=<owner>/<repo> ./Scripts/release-private-ffi.sh 2.6.0-alpha.6
-PRIVATE_FFI_REPO=<owner>/<repo> ./Scripts/cut-private-release.sh 2.6.0-alpha.6
+PRIVATE_FFI_REPO=<owner>/<repo> ./Scripts/publish-private-sdk-tag.sh 2.6.0-alpha.6
 ```
 
 `release-private-ffi.sh` builds all 5 architectures in FULL mode — restoring whichever
 slipstream-ffi mode was active before it ran, even on failure — and publishes the zip as
 release `ffi-2.6.0-alpha.6` on `$PRIVATE_FFI_REPO` (default in
 `Scripts/private-ffi-common.sh`, override via the environment, e.g. for testing against
-a scratch repo). `cut-private-release.sh` re-downloads that same zip, checksums it itself
+a scratch repo). `publish-private-sdk-tag.sh` re-downloads that same zip, checksums it itself
 (never trusting the checksum in release metadata), and pushes a commit with the patched
 `Package.swift` directly to the `2.6.0-alpha.6` tag on `$PRIVATE_FFI_GIT_URL` (derived
 from `$PRIVATE_FFI_REPO`; see `Scripts/private-ffi-common.sh`) — no local branch, and no
-push to this repo's own `origin`. Re-cutting after a checksum-affecting re-upload needs
+push to this repo's own `origin`. Re-publishing the tag after a checksum-affecting re-upload needs
 `--force-retag`.
 
 ### Troubleshooting
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| SwiftPM / `gh` / `xcodebuild` reports 404 fetching the asset | No access to the private repo, an expired/wrong PAT, or a stale asset ID | Confirm `gh api repos/<owner>/<repo>` succeeds for your account; regenerate the PAT; re-run `cut-private-release.sh` to re-read the current asset ID |
-| SwiftPM fails with a checksum mismatch | The release asset was re-uploaded (its numeric asset ID and content changed, but the `<version>` tag still points at the old checksum/ID — an asset re-upload always invalidates the tag that referenced it) | Recut the tag (`cut-private-release.sh <version> --force-retag`) and have consumers re-resolve packages |
+| SwiftPM / `gh` / `xcodebuild` reports 404 fetching the asset | No access to the private repo, an expired/wrong PAT, or a stale asset ID | Confirm `gh api repos/<owner>/<repo>` succeeds for your account; regenerate the PAT; re-run `publish-private-sdk-tag.sh` to re-read the current asset ID |
+| SwiftPM fails with a checksum mismatch | The release asset was re-uploaded (its numeric asset ID and content changed, but the `<version>` tag still points at the old checksum/ID — an asset re-upload always invalidates the tag that referenced it) | Re-publish the tag (`publish-private-sdk-tag.sh <version> --force-retag`) and have consumers re-resolve packages |
 | Stale/corrupted resolve after switching versions or flavors | SwiftPM's or Xcode's local package cache still has the old artifact | Purge the cache: delete `.build/` in a SwiftPM-only checkout (or whatever directory you passed to `--cache-path`/`--scratch-path`), or in Xcode: File > Packages > Reset Package Caches (see the general Troubleshooting section below for `DerivedData` too) |
 
 ## Troubleshooting
