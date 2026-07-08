@@ -246,7 +246,7 @@ semver tag `<version>` directly to the private FFI asset repo, with `Package.swi
 other SwiftPM package dependency:
 
 ```swift
-.package(url: "git@github.com:LukasKorba/zcash-sdk-private-ffi.git", exact: "2.6.0-alpha.6")
+.package(url: "git@github.com:Chlup/zcash-sdk-private-ffi.git", exact: "2.6.0-alpha.6")
 ```
 
 `Package.resolved` pins the exact commit, same as any other tag dependency.

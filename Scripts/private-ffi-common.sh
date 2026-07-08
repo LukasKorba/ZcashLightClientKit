@@ -9,10 +9,10 @@
 # PRIVATE_FFI_REPO is the private GitHub repo that hosts prebuilt FULL-flavor
 # libzcashlc.xcframework.zip releases (the "private-ffi asset repo" -- distinct from
 # the private slipstream ENGINE source repo that private-ffi-mode.sh talks to).
-# LukasKorba/zcash-sdk-private-ffi is a PLACEHOLDER: it does not exist yet. This is the
+# Chlup/zcash-sdk-private-ffi is a PLACEHOLDER: it does not exist yet. This is the
 # only place the name is hardcoded, and it's env-overridable so the P5 gates (and any
 # future rename) never need to touch the scripts themselves.
-PRIVATE_FFI_REPO="${PRIVATE_FFI_REPO:-LukasKorba/zcash-sdk-private-ffi}"
+PRIVATE_FFI_REPO="${PRIVATE_FFI_REPO:-Chlup/zcash-sdk-private-ffi}"
 
 # PRIVATE_FFI_GIT_URL is where publish-private-sdk-tag.sh pushes the SPM-consumable
 # <version> tag. It defaults to the ssh form of PRIVATE_FFI_REPO -- git push needs a
