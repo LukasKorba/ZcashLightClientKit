@@ -121,6 +121,7 @@ whichever flavor the current state selects).
 | `release-private-ffi.sh` | Private release | Step 1 of a private release: build the FULL XCFramework and upload it to the private asset repo as release `ffi-<version>`. |
 | `publish-private-sdk-tag.sh` | Private release | Step 2 of a private release: publish the SPM-consumable `<version>` tag on the private asset repo (SDK tree with the binaryTarget pointed at the `ffi-<version>` asset). `--force-retag` re-publishes after an asset re-upload. |
 | `prepare-public-release.sh` | Public release | Build the STUB XCFramework and upload it as a draft release on the public repo. Normally run by the `Build FFI XCFramework` GitHub workflow. |
+| `prepare-release.sh` | Public release (compat shim) | Forwards to `prepare-public-release.sh` — kept so the `Build FFI XCFramework` workflow and existing automation run unchanged. |
 | `release-public.sh` | Public release | Fully automated public release: wraps `prepare-public-release.sh`, bumps `Package.swift`'s URL+checksum, and creates the signed tag. |
 
 ### `init-local-ffi.sh`
