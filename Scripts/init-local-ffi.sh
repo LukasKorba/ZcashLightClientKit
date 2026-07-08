@@ -9,7 +9,7 @@
 #                 and device (aarch64-apple-ios).
 #   --arm-all     Build all arm64 slices: iOS simulator + device + macOS.
 #   --cached      Download the pre-built release XCFramework instead of building.
-#   --cached-full [<version>]
+#   --cached-private [<version>]
 #                 Download a prebuilt FULL-flavor XCFramework from the private FFI
 #                 asset repo ($PRIVATE_FFI_REPO, see Scripts/private-ffi-common.sh)
 #                 instead of building. Collaborator path: no Rust toolchain, no netrc --
@@ -40,7 +40,7 @@
 set -e
 cd "$(dirname "$0")/.."
 
-echo "slipstream-ffi mode: $(./Scripts/slipstream-ffi-mode.sh status || echo UNKNOWN)"
+echo "slipstream-ffi mode: $(./Scripts/private-ffi-mode.sh status || echo UNKNOWN)"
 
 # Ensure cargo/rustup are on PATH (needed when invoked from Xcode)
 if [[ -f "$HOME/.cargo/env" ]]; then
@@ -63,7 +63,7 @@ Options:
   --arm-ios     Build only the arm64 iOS slices: simulator + device.
   --arm-all     Build all arm64 slices: iOS simulator + device + macOS.
   --cached      Download the pre-built release XCFramework instead of building.
-  --cached-full [<version>]
+  --cached-private [<version>]
                 Download a prebuilt FULL-flavor XCFramework from the private FFI asset
                 repo's `ffi-<version>` release tag instead of building (requires gh
                 access; no Rust toolchain, no netrc). <version> defaults to
@@ -164,9 +164,9 @@ build_arm_xcframework() {
     rm -rf "$temp_dir"
 }
 
-# Parse the single optional flag. Only --cached-full takes a further value (a version).
-if [[ $# -gt 2 ]] || { [[ $# -eq 2 ]] && [[ "$1" != "--cached-full" ]]; }; then
-    usage "Too many arguments; pass at most one option (only --cached-full takes a version)."
+# Parse the single optional flag. Only --cached-private takes a further value (a version).
+if [[ $# -gt 2 ]] || { [[ $# -eq 2 ]] && [[ "$1" != "--cached-private" ]]; }; then
+    usage "Too many arguments; pass at most one option (only --cached-private takes a version)."
 fi
 
 BUILD_MODE="full"
@@ -179,8 +179,8 @@ case "${1:-}" in
     --cached)
         BUILD_MODE="cached"
         ;;
-    --cached-full)
-        BUILD_MODE="cached-full"
+    --cached-private)
+        BUILD_MODE="cached-private"
         CACHED_FULL_VERSION="${2:-}"
         ;;
     --arm-macos)
@@ -244,7 +244,7 @@ elif [[ "$BUILD_MODE" == "cached" ]]; then
     echo ""
     echo "Note: Downloaded pre-built xcframework may not match your local source."
     echo "      Run './Scripts/rebuild-local-ffi.sh' to rebuild for your target platform."
-elif [[ "$BUILD_MODE" == "cached-full" ]]; then
+elif [[ "$BUILD_MODE" == "cached-private" ]]; then
     source Scripts/private-ffi-common.sh
     require_private_ffi_access
 
@@ -268,7 +268,7 @@ elif [[ "$BUILD_MODE" == "cached-full" ]]; then
         FULL_VERSION="$ENV_VERSION"
     fi
     if [[ -z "$FULL_VERSION" ]]; then
-        usage "No version given and $ENV_FILE not found. Usage: --cached-full <version>, or run release-private-ffi.sh first to populate $ENV_FILE."
+        usage "No version given and $ENV_FILE not found. Usage: --cached-private <version>, or run release-private-ffi.sh first to populate $ENV_FILE."
     fi
 
     # The asset lives on the release tag "ffi-<version>", not "<version>" itself (that

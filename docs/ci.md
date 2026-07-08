@@ -22,8 +22,8 @@ Prerequisites:
 - GPG key configured for tag signing
 
 Steps:
-- Use `./Scripts/release.sh <remote> <version>` for a fully automated release, or
-- Use `./Scripts/prepare-release.sh <version>` for a semi-automated process with manual steps
+- Use `./Scripts/release-public.sh <remote> <version>` for a fully automated release, or
+- Use `./Scripts/prepare-public-release.sh <version>` for a semi-automated process with manual steps
 
 Versions with a SemVer pre-release suffix (e.g. `2.6.0-alpha.1`) are detected automatically
 and the GitHub release is marked as a pre-release.

@@ -37,7 +37,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ github.event.inputs.version }}
-        run: ./Scripts/prepare-release.sh "$VERSION"
+        run: ./Scripts/prepare-public-release.sh "$VERSION"
 
       - name: Output Package.swift Update
         run: |

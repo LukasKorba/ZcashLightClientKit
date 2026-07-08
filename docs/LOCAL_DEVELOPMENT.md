@@ -54,7 +54,7 @@ The `--cached` flag downloads a pre-built release instead of building from sourc
 
 **Warning:** Only use `--cached` if there have been no FFI changes on your branch since the last release. Using a stale pre-built binary with modified Swift bindings could cause silent data corruption and loss of funds. Additionally, `--cached` skips the Rust build entirely, so the first call to `rebuild-local-ffi.sh` will be a full (non-incremental) build.
 
-If you have access to the private slipstream engine and want a prebuilt **FULL-flavor** binary (engine compiled in) without building from source, `--cached-full` is the equivalent collaborator path — see [Prebuilt FULL-flavor binary (access holders)](#prebuilt-full-flavor-binary-access-holders) below.
+If you have access to the private slipstream engine and want a prebuilt **FULL-flavor** binary (engine compiled in) without building from source, `--cached-private` is the equivalent collaborator path — see [Prebuilt FULL-flavor binary (access holders)](#prebuilt-full-flavor-binary-access-holders) below.
 
 For faster iteration on Apple Silicon you can build only the arm64 slices you need, skipping the x86_64 simulator/Mac slices you can't run there anyway:
 
@@ -106,6 +106,23 @@ If using Xcode, you may also need to reset package caches: File > Packages > Res
 
 ## Scripts Reference
 
+Scripts are named by realm: `*-public-*`/`*-public.sh` touch only the **public** repo
+and artifacts, `private-*`/`*-private-*` touch the **private** engine/asset repos, and
+the `*-local-ffi.sh` trio is flavor-neutral local tooling (it builds or downloads
+whichever flavor the current state selects).
+
+| Script | Realm | Used for |
+|---|---|---|
+| `init-local-ffi.sh` | Local dev (both flavors) | One-time `LocalPackages/` setup: build the FFI from source (all 5 arches, or `--arm-*` subsets), or download a prebuilt binary (`--cached` = public STUB release, `--cached-private [version]` = private FULL release, access holders only). |
+| `rebuild-local-ffi.sh` | Local dev (both flavors) | Fast single-arch incremental rebuild after Rust edits. The flavor follows the current FFI mode. |
+| `reset-local-ffi.sh` | Local dev | Remove `LocalPackages/` and switch back to the release binary. |
+| `private-ffi-mode.sh` | Private (source builds) | `enable`/`disable`/`status`: swap the checkout between the committed public manifests (STUB) and the private overlay (FULL). Only needed when *building the FULL flavor from source* — engine/FFI development and the flavor-parity gates. Also invoked internally by `release-private-ffi.sh`. |
+| `private-ffi-common.sh` | Private (config) | Sourced include, not executable. Single home of `PRIVATE_FFI_REPO` (the private asset repo name) and shared helpers for the private-distribution scripts. |
+| `release-private-ffi.sh` | Private release | Step 1 of a private release: build the FULL XCFramework and upload it to the private asset repo as release `ffi-<version>`. |
+| `publish-private-sdk-tag.sh` | Private release | Step 2 of a private release: publish the SPM-consumable `<version>` tag on the private asset repo (SDK tree with the binaryTarget pointed at the `ffi-<version>` asset). `--force-retag` re-publishes after an asset re-upload. |
+| `prepare-public-release.sh` | Public release | Build the STUB XCFramework and upload it as a draft release on the public repo. Normally run by the `Build FFI XCFramework` GitHub workflow. |
+| `release-public.sh` | Public release | Fully automated public release: wraps `prepare-public-release.sh`, bumps `Package.swift`'s URL+checksum, and creates the signed tag. |
+
 ### `init-local-ffi.sh`
 
 One-time setup that creates the local development environment.
@@ -116,11 +133,11 @@ One-time setup that creates the local development environment.
 ./Scripts/init-local-ffi.sh --arm-ios   # arm64 iOS simulator + device slices
 ./Scripts/init-local-ffi.sh --arm-all   # arm64 iOS simulator + device + macOS slices
 ./Scripts/init-local-ffi.sh --cached    # Download pre-built release
-./Scripts/init-local-ffi.sh --cached-full [version] # Download prebuilt FULL-flavor release (access holders — see below)
+./Scripts/init-local-ffi.sh --cached-private [version] # Download prebuilt FULL-flavor release (access holders — see below)
 ```
 
 This script:
-- Builds the full XCFramework (all 5 architectures), an arm64-only subset (`--arm-*`, faster on Apple Silicon since it skips the x86_64 slices), or downloads a pre-built one (public STUB-flavor via `--cached`, or private FULL-flavor via `--cached-full`)
+- Builds the full XCFramework (all 5 architectures), an arm64-only subset (`--arm-*`, faster on Apple Silicon since it skips the x86_64 slices), or downloads a pre-built one (public STUB-flavor via `--cached`, or private FULL-flavor via `--cached-private`)
 - Creates `LocalPackages/` with an SPM wrapper package
 - `Package.swift` automatically detects `LocalPackages/` and switches to local mode
 
@@ -190,7 +207,7 @@ The shared `ZcashLightClientKit` scheme in `ZcashSDK.xcworkspace` includes `FFIB
 This SDK ships in two flavors of the same `libzcashlc` XCFramework: **STUB** (the public
 default — every `slipstream_*` FFI entry point reports "engine not available") and
 **FULL** (the real slipstream engine compiled in). Building FULL from source requires
-git access to the private slipstream engine repository (`Scripts/slipstream-ffi-mode.sh
+git access to the private slipstream engine repository (`Scripts/private-ffi-mode.sh
 enable`, above). If you don't need to touch Rust at all, prebuilt FULL-flavor
 XCFrameworks are also published on a dedicated private GitHub repo (`$PRIVATE_FFI_REPO`,
 defined in `Scripts/private-ffi-common.sh`) — three ways to consume one, depending on
@@ -199,12 +216,12 @@ who you are:
 | You are... | Use | Needs |
 |---|---|---|
 | An app depending on this SDK | `.package(url: "git@github.com:<org>/<private-ffi-repo>.git", exact: "<version>")` | ssh access to the repo + `~/.netrc` with a PAT (binary download) |
-| An SDK collaborator not touching Rust | `./Scripts/init-local-ffi.sh --cached-full` | `gh auth` access to the private FFI repo only |
-| An SDK collaborator building the engine from source | `./Scripts/slipstream-ffi-mode.sh enable` + `init-local-ffi.sh` | git access to the private *engine* repo |
+| An SDK collaborator not touching Rust | `./Scripts/init-local-ffi.sh --cached-private` | `gh auth` access to the private FFI repo only |
+| An SDK collaborator building the engine from source | `./Scripts/private-ffi-mode.sh enable` + `init-local-ffi.sh` | git access to the private *engine* repo |
 
 Note the two different private repos involved: the FFI **asset** repo (prebuilt
 binaries and the version tags below) and the engine **source** repo
-(`LukasKorba/slipstream`, used by `slipstream-ffi-mode.sh`). They are deliberately
+(`LukasKorba/slipstream`, used by `private-ffi-mode.sh`). They are deliberately
 separate — see the PAT guidance below.
 
 `$PRIVATE_FFI_REPO` carries two kinds of tag per version, created by two different
@@ -270,10 +287,10 @@ If CI resolves the package over HTTPS rather than ssh, the injected netrc needs 
 lines (`machine github.com` for the git clone, `machine api.github.com` for the binary
 download), per the authentication split above.
 
-### 2. SDK collaborator: `--cached-full` (no Rust toolchain)
+### 2. SDK collaborator: `--cached-private` (no Rust toolchain)
 
 ```bash
-./Scripts/init-local-ffi.sh --cached-full 2.6.0-alpha.6
+./Scripts/init-local-ffi.sh --cached-private 2.6.0-alpha.6
 ```
 
 Downloads the private-release XCFramework straight into `LocalPackages/` — equivalent to
@@ -285,7 +302,7 @@ just cut a release yourself).
 
 ### 3. SDK collaborator: build FULL from source
 
-See `Scripts/slipstream-ffi-mode.sh enable` above — this is the only one of the three
+See `Scripts/private-ffi-mode.sh enable` above — this is the only one of the three
 paths that touches the private engine source, and the only one gated on access to that
 repo rather than the FFI asset repo.
 

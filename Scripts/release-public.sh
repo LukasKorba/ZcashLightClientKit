@@ -1,10 +1,10 @@
 #!/bin/bash
 # Full SDK release workflow
-# Usage: ./Scripts/release.sh <remote> <version>
+# Usage: ./Scripts/release-public.sh <remote> <version>
 #
 # This script performs the COMPLETE release process:
 #   1. Pre-flight checks (clean dir, branch, GPG)
-#   2. Builds xcframework and uploads draft release (via prepare-release.sh)
+#   2. Builds xcframework and uploads draft release (via prepare-public-release.sh)
 #   3. Updates Package.swift with URL and checksum
 #   4. Commits the Package.swift change
 #   5. Pauses for manual verification of the draft release
@@ -27,7 +27,7 @@
 #   - Clean working directory (no uncommitted changes)
 #
 # For security releases where you need more control over timing,
-# use prepare-release.sh instead and perform steps manually.
+# use prepare-public-release.sh instead and perform steps manually.
 
 set -e
 
@@ -107,9 +107,9 @@ fi
 
 # === Step 1: Build and upload draft release ===
 echo "=== Step 1/6: Build and upload draft release ==="
-./Scripts/prepare-release.sh "$VERSION"
+./Scripts/prepare-public-release.sh "$VERSION"
 
-# Read release info written by prepare-release.sh
+# Read release info written by prepare-public-release.sh
 source "$PRODUCTS_DIR/release.env"
 
 echo ""

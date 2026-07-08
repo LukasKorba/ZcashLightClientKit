@@ -82,7 +82,7 @@ tracing-subscriber = "0.3"
 # adds the private engine dependency and the vendored-fork patches below
 # ([patch.crates-io]); the SDK builds and runs fully without this overlay via the STUB
 # flavor (`rust/src/slipstream_ffi_stubs.rs` stands in for `rust/src/slipstream_ffi.rs`)
-# — see docs/LOCAL_DEVELOPMENT.md and Scripts/slipstream-ffi-mode.sh for switching
+# — see docs/LOCAL_DEVELOPMENT.md and Scripts/private-ffi-mode.sh for switching
 # between STUB and FULL builds.
 slipstream-core = { git = "https://github.com/LukasKorba/slipstream", tag = "v0.5.1", optional = true }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
