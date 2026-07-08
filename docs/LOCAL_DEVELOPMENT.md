@@ -228,7 +228,9 @@ machine api.github.com login <your-github-username> password <fine-grained-PAT>
 ```
 
 `chmod 600 ~/.netrc` — SwiftPM (like `git` and `curl`) may otherwise ignore or refuse a
-world-readable netrc. On macOS you can use the keychain instead of a plaintext file:
+world-readable netrc. The netrc route is the one our distribution gates verify
+end-to-end; as Apple's documented alternative (not exercised by our gates), on macOS
+you can use the keychain instead of a plaintext file:
 
 ```bash
 security add-internet-password -a <your-github-username> -s api.github.com -w <fine-grained-PAT>

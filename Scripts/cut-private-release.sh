@@ -98,9 +98,23 @@ if [[ "$ORIGINAL_BRANCH" == "HEAD" ]]; then
     # Detached HEAD: --abbrev-ref can't name it, so pin the exact commit instead.
     ORIGINAL_BRANCH=$(git rev-parse HEAD)
 fi
+DOWNLOAD_DIR=""
 return_to_original_branch() {
     local exit_code=$?
-    if ! git checkout "$ORIGINAL_BRANCH" >/dev/null 2>&1; then
+    # Clean up the download dir and any half-written rewrite output.
+    if [[ -n "$DOWNLOAD_DIR" ]]; then
+        rm -rf "$DOWNLOAD_DIR"
+    fi
+    rm -f Package.swift.tmp
+    # If we died between the rewrite and a successful commit (e.g. a failing commit
+    # hook), Package.swift -- worktree and possibly index -- still carries the private
+    # asset URL. Discard that from HEAD before switching, so the rewrite can never ride
+    # back to the original branch. On the success path both this and the forced branch
+    # switch are no-ops (the rewrite is committed on $BRANCH, the tree is clean).
+    if ! git checkout HEAD -- Package.swift 2>/dev/null; then
+        echo "Warning: failed to reset Package.swift from HEAD before switching back." >&2
+    fi
+    if ! git checkout -f "$ORIGINAL_BRANCH" >/dev/null 2>&1; then
         echo "Warning: failed to check out ${ORIGINAL_BRANCH} to restore your original branch." >&2
     fi
     exit $exit_code
@@ -167,9 +181,20 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>
 EOF
 )"
 
+ORIGIN_URL=$(git remote get-url origin)
+
 if [[ "$NO_PUSH" != "true" ]]; then
+    # private-release/* branches carry private asset URLs and belong on the private
+    # fork only -- hard-refuse the public upstream, no override flag.
+    if [[ "$ORIGIN_URL" == *"zcash/zcash-swift-wallet-sdk"* ]]; then
+        echo "" >&2
+        echo "Error: origin points at the public upstream (${ORIGIN_URL})." >&2
+        echo "private-release/* branches must never be pushed to zcash/zcash-swift-wallet-sdk." >&2
+        echo "Re-point origin at the private fork, or re-run with --no-push and push manually." >&2
+        exit 1
+    fi
     echo ""
-    echo "=== Pushing ${BRANCH} to origin ==="
+    echo "=== Pushing ${BRANCH} to origin (${ORIGIN_URL}) ==="
     if ! git push -u origin "$BRANCH"; then
         echo "" >&2
         echo "Error: push rejected. If ${BRANCH} already exists on origin with different" >&2
@@ -182,8 +207,6 @@ else
     echo ""
     echo "Skipping push (--no-push). Local branch ${BRANCH} is ready."
 fi
-
-ORIGIN_URL=$(git remote get-url origin)
 
 echo ""
 echo "=========================================="
