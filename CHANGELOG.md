@@ -12,7 +12,9 @@ and this library adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Cargo git dependency (not vendored). `SlipstreamSynchronizer` is a drop-in `Synchronizer`
   implementation; the existing sync path is unchanged and remains the default. Measured
   fresh restores on real wallets are ~13–22× faster than the current path (numbers and
-  methodology in the engine repository).
+  methodology in the engine repository). The engine is an optional binary component;
+  `SlipstreamSynchronizer.isEngineAvailable` reports whether this build carries it, and
+  `prepare` throws `ZSLST0001` when it doesn't.
 - `ZcashError.initializerSeedMismatch` (`ZINIT0006`): `prepare` now validates the supplied
   seed against the wallet database's existing seed-derived accounts and throws instead of
   silently opening the old wallet (imported-only wallets are exempt).
