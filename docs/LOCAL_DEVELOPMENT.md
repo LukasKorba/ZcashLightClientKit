@@ -54,6 +54,8 @@ The `--cached` flag downloads a pre-built release instead of building from sourc
 
 **Warning:** Only use `--cached` if there have been no FFI changes on your branch since the last release. Using a stale pre-built binary with modified Swift bindings could cause silent data corruption and loss of funds. Additionally, `--cached` skips the Rust build entirely, so the first call to `rebuild-local-ffi.sh` will be a full (non-incremental) build.
 
+If you have access to the private slipstream engine and want a prebuilt **FULL-flavor** binary (engine compiled in) without building from source, `--cached-full` is the equivalent collaborator path — see [Prebuilt FULL-flavor binary (access holders)](#prebuilt-full-flavor-binary-access-holders) below.
+
 For faster iteration on Apple Silicon you can build only the arm64 slices you need, skipping the x86_64 simulator/Mac slices you can't run there anyway:
 
 ```bash
@@ -114,10 +116,11 @@ One-time setup that creates the local development environment.
 ./Scripts/init-local-ffi.sh --arm-ios   # arm64 iOS simulator + device slices
 ./Scripts/init-local-ffi.sh --arm-all   # arm64 iOS simulator + device + macOS slices
 ./Scripts/init-local-ffi.sh --cached    # Download pre-built release
+./Scripts/init-local-ffi.sh --cached-full [version] # Download prebuilt FULL-flavor release (access holders — see below)
 ```
 
 This script:
-- Builds the full XCFramework (all 5 architectures), an arm64-only subset (`--arm-*`, faster on Apple Silicon since it skips the x86_64 slices), or downloads a pre-built one
+- Builds the full XCFramework (all 5 architectures), an arm64-only subset (`--arm-*`, faster on Apple Silicon since it skips the x86_64 slices), or downloads a pre-built one (public STUB-flavor via `--cached`, or private FULL-flavor via `--cached-full`)
 - Creates `LocalPackages/` with an SPM wrapper package
 - `Package.swift` automatically detects `LocalPackages/` and switches to local mode
 
@@ -181,6 +184,105 @@ The shared `ZcashLightClientKit` scheme in `ZcashSDK.xcworkspace` includes `FFIB
 |----------|----------|
 | Manual script (`rebuild-local-ffi.sh`) | Occasional FFI changes, simple setup |
 | FFIBuilder target in workspace | Frequent FFI changes, prefer staying in Xcode |
+
+## Prebuilt FULL-flavor binary (access holders)
+
+This SDK ships in two flavors of the same `libzcashlc` XCFramework: **STUB** (the public
+default — every `slipstream_*` FFI entry point reports "engine not available") and
+**FULL** (the real slipstream engine compiled in). Building FULL from source requires
+git access to the private slipstream engine repository (`Scripts/slipstream-ffi-mode.sh
+enable`, above). If you don't need to touch Rust at all, prebuilt FULL-flavor
+XCFrameworks are also published as releases on a private, asset-only GitHub repo
+(`$PRIVATE_FFI_REPO`, defined in `Scripts/private-ffi-common.sh`) — three ways to
+consume one, depending on who you are:
+
+| You are... | Use | Needs |
+|---|---|---|
+| An app depending on this SDK | `.package(url: "<fork>", branch: "private-release/<version>")` | `~/.netrc` (or keychain) with a PAT |
+| An SDK collaborator not touching Rust | `./Scripts/init-local-ffi.sh --cached-full` | `gh auth` access to the private FFI repo only |
+| An SDK collaborator building the engine from source | `./Scripts/slipstream-ffi-mode.sh enable` + `init-local-ffi.sh` | git access to the private *engine* repo |
+
+Note the two different private repos involved: the FFI **asset** repo (prebuilt
+binaries only) and the engine **source** repo (`LukasKorba/slipstream`, used by
+`slipstream-ffi-mode.sh`). They are deliberately separate — see the PAT guidance below.
+
+### 1. App: consume a `private-release/*` branch
+
+`Scripts/cut-private-release.sh` (run by whoever manages FFI releases) publishes
+branches named `private-release/<version>` that point this fork's `Package.swift`
+`libzcashlc` binaryTarget at a specific private release asset. Depend on one directly:
+
+```swift
+.package(url: "git@github.com:LukasKorba/ZcashLightClientKit.git", branch: "private-release/2.6.0-alpha.6")
+```
+
+`Package.resolved` pins the exact commit, so this is as reproducible as depending on a
+tag. Branches are used instead of semver build-metadata tags (e.g.
+`2.6.0-alpha.6+slipstream`) because SwiftPM's handling of those is quirky.
+
+SwiftPM authenticates binary-target downloads from private GitHub releases via
+`~/.netrc`:
+
+```
+machine api.github.com login <your-github-username> password <fine-grained-PAT>
+```
+
+`chmod 600 ~/.netrc` — SwiftPM (like `git` and `curl`) may otherwise ignore or refuse a
+world-readable netrc. On macOS you can use the keychain instead of a plaintext file:
+
+```bash
+security add-internet-password -a <your-github-username> -s api.github.com -w <fine-grained-PAT>
+```
+
+**PAT scope:** create a **fine-grained** personal access token with **`Contents: read`**
+scoped to **only the private FFI asset repo** — never a classic all-repo token. Keeping
+prebuilt binaries in their own dedicated repo, separate from the engine source, exists
+precisely so that a leaked netrc/keychain credential exposes only "someone can download
+prebuilt binaries," never "someone can read the engine source."
+
+**App CI:** inject `~/.netrc` from a secret at build/checkout time (e.g. a setup step
+that writes it before `xcodebuild`/`swift build` run) — don't commit it to the repo.
+
+### 2. SDK collaborator: `--cached-full` (no Rust toolchain)
+
+```bash
+./Scripts/init-local-ffi.sh --cached-full 2.6.0-alpha.6
+```
+
+Downloads the same private-release XCFramework straight into `LocalPackages/` —
+equivalent to `--cached`, but from the private FFI asset repo instead of the public SDK
+release. This only needs `gh auth` access to that repo: no netrc, no Rust toolchain, no
+engine-source access. Omit the version to reuse the one recorded in
+`BuildSupport/products/private-release.env` (written by `release-private-ffi.sh` if you
+just cut a release yourself).
+
+### 3. SDK collaborator: build FULL from source
+
+See `Scripts/slipstream-ffi-mode.sh enable` above — this is the only one of the three
+paths that touches the private engine source, and the only one gated on access to that
+repo rather than the FFI asset repo.
+
+### Releasing a new FULL-flavor binary (maintainers)
+
+```bash
+PRIVATE_FFI_REPO=<owner>/<repo> ./Scripts/release-private-ffi.sh 2.6.0-alpha.6
+PRIVATE_FFI_REPO=<owner>/<repo> ./Scripts/cut-private-release.sh 2.6.0-alpha.6
+```
+
+`release-private-ffi.sh` builds all 5 architectures in FULL mode — restoring whichever
+slipstream-ffi mode was active before it ran, even on failure — and publishes the zip to
+`$PRIVATE_FFI_REPO` (default in `Scripts/private-ffi-common.sh`, override via the
+environment, e.g. for testing against a scratch repo). `cut-private-release.sh`
+re-downloads that same zip, checksums it itself (never trusting the checksum in release
+metadata), and rewrites + pushes the `private-release/<version>` branch described above.
+
+### Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| SwiftPM / `gh` / `xcodebuild` reports 404 fetching the asset | No access to the private repo, an expired/wrong PAT, or a stale asset ID | Confirm `gh api repos/<owner>/<repo>` succeeds for your account; regenerate the PAT; re-run `cut-private-release.sh` to re-read the current asset ID |
+| SwiftPM fails with a checksum mismatch | The release asset was re-uploaded (its numeric asset ID and content changed, but a `private-release/*` branch still points at the old checksum/ID — an asset re-upload always invalidates the branch that referenced it) | Recut the branch (`cut-private-release.sh <version>`) and have consumers re-resolve packages |
+| Stale/corrupted resolve after switching versions or flavors | SwiftPM's or Xcode's local package cache still has the old artifact | Purge the cache: delete `.build/` in a SwiftPM-only checkout (or whatever directory you passed to `--cache-path`/`--scratch-path`), or in Xcode: File > Packages > Reset Package Caches (see the general Troubleshooting section below for `DerivedData` too) |
 
 ## Troubleshooting
 
