@@ -2540,7 +2540,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sharded-slab",
- "tokio",
  "tonic",
  "tor-rtcompat",
  "tracing",
