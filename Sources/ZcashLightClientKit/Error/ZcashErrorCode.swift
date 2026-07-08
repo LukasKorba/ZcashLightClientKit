@@ -271,6 +271,8 @@ public enum ZcashErrorCode: String {
     case rustSlipstreamSyncFailed = "ZRUST0096"
     /// Operation is not supported by `SlipstreamSynchronizer` (wipe / switchTo).
     case rustSlipstreamUnsupported = "ZRUST0097"
+    /// This build of the SDK does not include the Slipstream engine. The classic sync path is unaffected.
+    case slipstreamEngineUnavailable = "ZSLST0001"
     /// SQLite query failed when fetching all accounts from the database.
     case accountDAOGetAll = "ZADAO0001"
     /// Fetched accounts from SQLite but can't decode them.

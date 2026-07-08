@@ -37,6 +37,17 @@ import Foundation
 /// handles) — except `stop()`, which registers its teardown in a lock-guarded slot so an
 /// immediately-following `start()` can still await it (the SDK-1 ordering contract).
 public actor SlipstreamSynchronizer: Synchronizer {
+    // ── Engine availability (private-engine two-flavor FFI spec, P3) ───────────
+    /// Whether this build of the SDK links the real Slipstream engine (FULL flavor, built
+    /// with access to the private engine repository) or only the stub ABI (public flavor —
+    /// every `zcashlc_slipstream_*` entry point reports "engine not available"). Apps can
+    /// check this up front to decide whether to offer a `useSlipstream` toggle at all: on a
+    /// stub build `prepare()` — and any actual `switchTo(endpoint:)` — always throws
+    /// `ZcashError.slipstreamEngineUnavailable`, so reading this flag lets the UI branch
+    /// (hide/disable the toggle) instead of hitting that throw at runtime. The classic
+    /// `SDKSynchronizer` sync path is unaffected either way.
+    public static var isEngineAvailable: Bool { SlipstreamFFI.isEngineAvailable }
+
     // ── Alias ──────────────────────────────────────────────────────────────────
     public nonisolated var alias: ZcashSynchronizerAlias { initializer.alias }
 
@@ -191,6 +202,13 @@ public actor SlipstreamSynchronizer: Synchronizer {
         name: String,
         keySource: String?
     ) async throws -> Initializer.InitializationResult {
+        // [P3] Fail fast on stub-flavor `libzcashlc` builds (no private engine repository
+        // access) — before touching the wallet DB or opening the engine handle. Apps should
+        // check `isEngineAvailable` up front and hide/disable `useSlipstream` UI instead of
+        // hitting this at runtime; the classic `SDKSynchronizer` path is unaffected.
+        guard SlipstreamFFI.isEngineAvailable else {
+            throw ZcashError.slipstreamEngineUnavailable
+        }
         // [v2.1 E-6] Route init-time provisioning (restore recover_until / new-wallet tree
         // state) through the engine's `restore_anchor` primitive — the offline fallback
         // policy and Tor privacy live ENGINE-side, one implementation for every host. The
@@ -1092,6 +1110,15 @@ public actor SlipstreamSynchronizer: Synchronizer {
                 file: #file, function: #function, line: #line
             )
             return
+        }
+
+        // [P3] An actual switch reaches `engine.reopen()` → `zcashlc_slipstream_open`
+        // unconditionally below — fail fast with the friendly error on stub-flavor builds
+        // (same contract as `prepare`) instead of leaking a raw `rustSlipstreamOpen`.
+        // Deliberately AFTER the F2 no-op check: switching to the endpoint already in use
+        // performs no engine work on any flavor, so it stays a successful no-op.
+        guard SlipstreamFFI.isEngineAvailable else {
+            throw ZcashError.slipstreamEngineUnavailable
         }
 
         let wasRunning = isRunning

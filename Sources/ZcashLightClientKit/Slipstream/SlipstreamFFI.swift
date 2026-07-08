@@ -6,10 +6,24 @@
 //
 //  Swift-side wrappers for the C types generated in `zcashlc.h` by cbindgen.
 //  These are plain value types — no FFI pointers; callers never reach into the C layer directly.
+//  Also hosts `SlipstreamFFI`, a namespace for direct (non-struct) probes over the raw C ABI —
+//  currently just the FULL-vs-stub availability check (private-engine two-flavor FFI spec, P3).
 //
 
 import Foundation
 import libzcashlc
+
+/// Namespace for direct wrappers around standalone `zcashlc_slipstream_*` C probe functions
+/// (as opposed to the C **struct** wrappers below, which are plain value types).
+enum SlipstreamFFI {
+    /// Whether this `libzcashlc` binary contains the real Slipstream engine (FULL flavor,
+    /// built with private-repository access) or only the stub ABI (public flavor — every
+    /// `zcashlc_slipstream_*` entry point reports "engine not available"). Both flavors
+    /// expose the identical C surface, so this is the one runtime signal that tells them
+    /// apart. `SlipstreamSynchronizer.isEngineAvailable` is the public-facing mirror of
+    /// this probe; apps should check that one, not this internal wrapper.
+    static var isEngineAvailable: Bool { zcashlc_slipstream_available() }
+}
 
 /// Swift-friendly wrapper around `FfiSlipstreamSnapshot` from the C header.
 /// The C struct is returned BY VALUE from `zcashlc_slipstream_snapshot`; Swift receives it as a

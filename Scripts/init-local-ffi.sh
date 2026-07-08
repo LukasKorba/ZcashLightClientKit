@@ -9,6 +9,23 @@
 #                 and device (aarch64-apple-ios).
 #   --arm-all     Build all arm64 slices: iOS simulator + device + macOS.
 #   --cached      Download the pre-built release XCFramework instead of building.
+#   --cached-private [<version>]
+#                 Download a prebuilt FULL-flavor XCFramework from the private FFI
+#                 asset repo ($PRIVATE_FFI_REPO, see Scripts/private-ffi-common.sh)
+#                 instead of building. Collaborator path: no Rust toolchain, no netrc --
+#                 just `gh auth` access to the private repo. <version> defaults to the
+#                 VERSION recorded in BuildSupport/products/private-release.env (written
+#                 by release-private-ffi.sh) when omitted. Downloads from that version's
+#                 release tag `ffi-<version>` (honoring the RELEASE_TAG recorded in
+#                 private-release.env when present, in case that convention ever
+#                 changes; otherwise derived as `ffi-<version>`).
+#
+#                 Checksum verification: if private-release.env is present AND its
+#                 VERSION matches, the download is verified against its CHECKSUM.
+#                 Otherwise (no env file, or it's for a different version) there is
+#                 nothing trusted to check against, so this prints the computed sha256
+#                 and proceeds on a TOFU (trust-on-first-use) basis -- record that value
+#                 if you want future downloads of this version verified.
 #
 # The --arm-* options skip the x86_64 simulator/Mac slices, which you cannot run on
 # Apple Silicon anyway, so local iteration is faster. They always build the aarch64
@@ -22,6 +39,8 @@
 
 set -e
 cd "$(dirname "$0")/.."
+
+echo "slipstream-ffi mode: $(./Scripts/private-ffi-mode.sh status || echo UNKNOWN)"
 
 # Ensure cargo/rustup are on PATH (needed when invoked from Xcode)
 if [[ -f "$HOME/.cargo/env" ]]; then
@@ -44,6 +63,13 @@ Options:
   --arm-ios     Build only the arm64 iOS slices: simulator + device.
   --arm-all     Build all arm64 slices: iOS simulator + device + macOS.
   --cached      Download the pre-built release XCFramework instead of building.
+  --cached-private [<version>]
+                Download a prebuilt FULL-flavor XCFramework from the private FFI asset
+                repo's `ffi-<version>` release tag instead of building (requires gh
+                access; no Rust toolchain, no netrc). <version> defaults to
+                BuildSupport/products/private-release.env when omitted. Verifies
+                against that file's CHECKSUM if it matches the requested version, else
+                proceeds TOFU and prints the computed sha256.
 
 Creates LocalPackages/ with a locally-built xcframework. Package.swift detects
 LocalPackages/ and uses it instead of the released binary.
@@ -138,19 +164,24 @@ build_arm_xcframework() {
     rm -rf "$temp_dir"
 }
 
-# Parse the single optional flag.
-if [[ $# -gt 1 ]]; then
-    usage "Too many arguments; pass at most one option."
+# Parse the single optional flag. Only --cached-private takes a further value (a version).
+if [[ $# -gt 2 ]] || { [[ $# -eq 2 ]] && [[ "$1" != "--cached-private" ]]; }; then
+    usage "Too many arguments; pass at most one option (only --cached-private takes a version)."
 fi
 
 BUILD_MODE="full"
 ARM_TARGETS=()
+CACHED_FULL_VERSION=""
 case "${1:-}" in
     "")
         BUILD_MODE="full"
         ;;
     --cached)
         BUILD_MODE="cached"
+        ;;
+    --cached-private)
+        BUILD_MODE="cached-private"
+        CACHED_FULL_VERSION="${2:-}"
         ;;
     --arm-macos)
         BUILD_MODE="arm"
@@ -213,6 +244,75 @@ elif [[ "$BUILD_MODE" == "cached" ]]; then
     echo ""
     echo "Note: Downloaded pre-built xcframework may not match your local source."
     echo "      Run './Scripts/rebuild-local-ffi.sh' to rebuild for your target platform."
+elif [[ "$BUILD_MODE" == "cached-private" ]]; then
+    source Scripts/private-ffi-common.sh
+    require_private_ffi_access
+
+    echo "Downloading pre-built FULL-flavor xcframework from $PRIVATE_FFI_REPO..."
+
+    # A prebuilt FULL-flavor binary is orthogonal to the source-level slipstream-ffi
+    # mode (which only matters when building from Cargo source) -- this branch never
+    # touches Cargo.toml/Cargo.lock.
+    ENV_FILE="BuildSupport/products/private-release.env"
+    ENV_VERSION=""
+    ENV_CHECKSUM=""
+    ENV_RELEASE_TAG=""
+    if [[ -f "$ENV_FILE" ]]; then
+        ENV_VERSION=$(grep '^VERSION=' "$ENV_FILE" | cut -d= -f2-)
+        ENV_CHECKSUM=$(grep '^CHECKSUM=' "$ENV_FILE" | cut -d= -f2-)
+        ENV_RELEASE_TAG=$(grep '^RELEASE_TAG=' "$ENV_FILE" | cut -d= -f2-)
+    fi
+
+    FULL_VERSION="$CACHED_FULL_VERSION"
+    if [[ -z "$FULL_VERSION" ]]; then
+        FULL_VERSION="$ENV_VERSION"
+    fi
+    if [[ -z "$FULL_VERSION" ]]; then
+        usage "No version given and $ENV_FILE not found. Usage: --cached-private <version>, or run release-private-ffi.sh first to populate $ENV_FILE."
+    fi
+
+    # The asset lives on the release tag "ffi-<version>", not "<version>" itself (that
+    # plain tag is the separate SPM-consumable one publish-private-sdk-tag.sh creates).
+    # Honor the RELEASE_TAG recorded in private-release.env when it matches the
+    # requested version, in case the "ffi-" prefix convention ever changes; otherwise
+    # derive it.
+    RELEASE_TAG="ffi-${FULL_VERSION}"
+    if [[ -n "$ENV_RELEASE_TAG" && "$ENV_VERSION" == "$FULL_VERSION" ]]; then
+        RELEASE_TAG="$ENV_RELEASE_TAG"
+    fi
+
+    echo "Version: $FULL_VERSION (release tag: $RELEASE_TAG)"
+
+    mkdir -p LocalPackages
+    gh release download "$RELEASE_TAG" \
+        --repo "$PRIVATE_FFI_REPO" \
+        --pattern "libzcashlc.xcframework.zip" \
+        --dir LocalPackages
+
+    ACTUAL_CHECKSUM=$(shasum -a 256 LocalPackages/libzcashlc.xcframework.zip | awk '{print $1}')
+
+    if [[ -n "$ENV_CHECKSUM" && "$ENV_VERSION" == "$FULL_VERSION" ]]; then
+        if [[ "$ACTUAL_CHECKSUM" != "$ENV_CHECKSUM" ]]; then
+            echo "Error: Checksum mismatch!"
+            echo "  Expected (from $ENV_FILE): $ENV_CHECKSUM"
+            echo "  Actual:                    $ACTUAL_CHECKSUM"
+            rm -f LocalPackages/libzcashlc.xcframework.zip
+            exit 1
+        fi
+        echo "Checksum verified against $ENV_FILE."
+    else
+        echo ""
+        echo "Warning: no recorded checksum for $FULL_VERSION to verify against"
+        echo "($ENV_FILE is absent, or records a different version)."
+        echo "TOFU (trust-on-first-use): proceeding with the downloaded artifact. sha256:"
+        echo "  $ACTUAL_CHECKSUM"
+        echo "Record this value if you want future downloads of this version verified."
+    fi
+
+    unzip -o LocalPackages/libzcashlc.xcframework.zip -d LocalPackages/
+    rm LocalPackages/libzcashlc.xcframework.zip
+    echo ""
+    echo "Downloaded FULL-flavor xcframework (private release $FULL_VERSION)."
 else
     echo "Building full xcframework from source (this takes a while)..."
     cd BuildSupport

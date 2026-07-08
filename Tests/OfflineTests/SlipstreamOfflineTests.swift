@@ -305,7 +305,10 @@ class SlipstreamOfflineTests: ZcashTestCase {
 
     /// `switchTo(endpoint:)` on a synchronizer that was never started must complete
     /// without error and store the new endpoint (no crash, no leftover handle state).
+    /// Skipped on stub-flavor `libzcashlc` builds: the never-opened engine's `reopen()`
+    /// reaches the real `zcashlc_slipstream_open` FFI call, which needs the engine.
     func testSwitchToWhenNeverStartedSucceeds() async throws {
+        try XCTSkipUnless(SlipstreamFFI.isEngineAvailable, "stub-flavor libzcashlc binary — slipstream engine not available")
         let sync = SlipstreamSynchronizer(initializer: try makeInitializer())
 
         // Pick a different endpoint to confirm the swap is accepted.
@@ -391,7 +394,10 @@ class SlipstreamOfflineTests: ZcashTestCase {
 
     /// `zcashlc_slipstream_open` with a path whose PARENT directory does not exist returns null →
     /// `SlipstreamEngine.open(network:)` throws `ZcashError.rustSlipstreamOpen`.
+    /// Skipped on stub-flavor `libzcashlc` builds: this test exercises the real FFI open
+    /// call (a never-opened engine's only guard is "already open"), which needs the engine.
     func testEngineOpenWithInvalidPathThrowsRustSlipstreamOpen() async throws {
+        try XCTSkipUnless(SlipstreamFFI.isEngineAvailable, "stub-flavor libzcashlc binary — slipstream engine not available")
         let invalidPath = URL(fileURLWithPath: "/nonexistent_slipstream_test/nested/path/data.db")
         let engine = SlipstreamEngine(
             dbURL: invalidPath,
@@ -694,7 +700,10 @@ class SlipstreamOfflineTests: ZcashTestCase {
     /// switchTo(endpoint:) with a DIFFERENT endpoint is NOT a no-op — the engine is
     /// re-opened (or the attempt to reopen fires the expected rustSlipstreamOpen on a
     /// temp path).  This test guards against accidentally making every switchTo a no-op.
+    /// Skipped on stub-flavor `libzcashlc` builds: the reopen() this test provokes
+    /// reaches the real `zcashlc_slipstream_open` FFI call, which needs the engine.
     func testSwitchToDifferentEndpointIsNotNoOp() async throws {
+        try XCTSkipUnless(SlipstreamFFI.isEngineAvailable, "stub-flavor libzcashlc binary — slipstream engine not available")
         let sync = SlipstreamSynchronizer(initializer: try makeInitializer())
 
         // Pick a clearly different endpoint (different host AND port).
@@ -897,6 +906,54 @@ class SlipstreamOfflineTests: ZcashTestCase {
     /// The shipped threshold constant is 120 s.
     func testStallWatchdogThresholdConstant() {
         XCTAssertEqual(SlipstreamSynchronizer.stallWatchdogThresholdSeconds, 120)
+    }
+
+    // MARK: - 15. [P3] isEngineAvailable probe consistency
+
+    /// `SlipstreamSynchronizer.isEngineAvailable` is a thin passthrough over
+    /// `SlipstreamFFI.isEngineAvailable` (itself a wrapper over `zcashlc_slipstream_available()`).
+    /// The two must always agree — on EVERY flavor of `libzcashlc`. Unlike the Engine FFI
+    /// smoke tests above, this holds regardless of which binary is linked, so it runs
+    /// unconditionally (no `XCTSkipUnless`): `false == false` on a stub-flavor binary,
+    /// `true == true` on a FULL-flavor one.
+    func testIsEngineAvailableMatchesSlipstreamFFIProbe() {
+        XCTAssertEqual(
+            SlipstreamSynchronizer.isEngineAvailable,
+            SlipstreamFFI.isEngineAvailable,
+            "SlipstreamSynchronizer.isEngineAvailable must mirror SlipstreamFFI.isEngineAvailable exactly"
+        )
+    }
+
+    /// The graceful stub-flavor failure itself (`ZSLST0001`): on a stub-flavor binary BOTH
+    /// engine-lifecycle entry points — `prepare(...)` and `switchTo(endpoint:)` — must throw
+    /// `ZcashError.slipstreamEngineUnavailable` as their FIRST act (no wallet-DB writes, no
+    /// raw `rustSlipstreamOpen` leaking out). Inverse-gated: this is the one test that only
+    /// runs against the STUB binary (zcash CI's flavor), so the graceful-failure path has
+    /// real coverage exactly where it matters; on a FULL binary the guards no-op and the
+    /// test skips.
+    func testPrepareAndSwitchToThrowEngineUnavailableOnStubFlavor() async throws {
+        try XCTSkipIf(SlipstreamFFI.isEngineAvailable, "full-flavor libzcashlc binary — slipstream engine present")
+        let sync = SlipstreamSynchronizer(initializer: try makeInitializer())
+
+        do {
+            _ = try await sync.prepare(with: nil, walletBirthday: nil, name: "test", keySource: nil)
+            XCTFail("prepare() must throw on a stub-flavor binary")
+        } catch let error as ZcashError {
+            XCTAssertEqual(error.code, .slipstreamEngineUnavailable,
+                           "Expected slipstreamEngineUnavailable from prepare(), got \(error.code)")
+        } catch {
+            XCTFail("Expected ZcashError.slipstreamEngineUnavailable from prepare(), got \(error)")
+        }
+
+        do {
+            try await sync.switchTo(endpoint: LightWalletEndpoint(address: "zec.rocks", port: 443, secure: true))
+            XCTFail("switchTo() must throw on a stub-flavor binary")
+        } catch let error as ZcashError {
+            XCTAssertEqual(error.code, .slipstreamEngineUnavailable,
+                           "Expected slipstreamEngineUnavailable from switchTo(), got \(error.code)")
+        } catch {
+            XCTFail("Expected ZcashError.slipstreamEngineUnavailable from switchTo(), got \(error)")
+        }
     }
 
 }

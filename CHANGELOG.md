@@ -8,11 +8,13 @@ and this library adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Added
 - **Slipstream** — an opt-in, high-performance sync engine (v0.5), integrated by reference:
-  the Rust engine lives at https://github.com/LukasKorba/slipstream and is consumed as a
-  Cargo git dependency (not vendored). `SlipstreamSynchronizer` is a drop-in `Synchronizer`
-  implementation; the existing sync path is unchanged and remains the default. Measured
-  fresh restores on real wallets are ~13–22× faster than the current path (numbers and
-  methodology in the engine repository).
+  the engine is developed in a separate repository (private; access available to
+  collaborators) and is an optional binary component — the SDK builds and functions fully
+  without it. `SlipstreamSynchronizer` is a drop-in `Synchronizer` implementation; the
+  existing sync path is unchanged and remains the default. Measured fresh restores on real
+  wallets are ~13–22× faster than the current path (numbers and methodology in the engine
+  repository). `SlipstreamSynchronizer.isEngineAvailable` reports whether this build
+  carries the engine, and `prepare`/`switchTo` throw `ZSLST0001` when it doesn't.
 - `ZcashError.initializerSeedMismatch` (`ZINIT0006`): `prepare` now validates the supplied
   seed against the wallet database's existing seed-derived accounts and throws instead of
   silently opening the old wallet (imported-only wallets are exempt).
