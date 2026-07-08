@@ -3,9 +3,9 @@
 # the private FFI asset repo ($PRIVATE_FFI_REPO, see private-ffi-common.sh).
 # Usage: ./Scripts/release-private-ffi.sh [--force-overwrite-existing-release] <version>
 #
-# This is the private-distribution twin of prepare-release.sh: same build + zip +
+# This is the private-distribution twin of prepare-public-release.sh: same build + zip +
 # checksum shape, but it publishes to a private, asset-only repo instead of the public
-# SDK repo. Unlike prepare-release.sh, it does NOT create a release branch or touch
+# SDK repo. Unlike prepare-public-release.sh, it does NOT create a release branch or touch
 # this repo's Package.swift -- wiring up a consumer tag is publish-private-sdk-tag.sh's
 # job, run separately (it's the thing that actually points at a specific asset).
 #
@@ -18,7 +18,7 @@
 #   1. Verify access to $PRIVATE_FFI_REPO (require_private_ffi_access) -- before
 #      anything else changes, so a missing-access failure never starts a build.
 #   2. Record the current slipstream-ffi mode (STUB or FULL) and switch to FULL
-#      (slipstream-ffi-mode.sh enable), restoring whatever mode was active beforehand
+#      (private-ffi-mode.sh enable), restoring whatever mode was active beforehand
 #      on exit via a trap -- the tree never stays in FULL mode by accident, even if
 #      this script fails partway through.
 #   3. Ensure the 5 Apple Rust targets are installed (idempotent).
@@ -37,7 +37,7 @@
 #
 # Prerequisites:
 #   - gh CLI installed and authenticated, with access to $PRIVATE_FFI_REPO
-#   - git access to the private slipstream ENGINE repo (slipstream-ffi-mode.sh enable) --
+#   - git access to the private slipstream ENGINE repo (private-ffi-mode.sh enable) --
 #     a different repo than $PRIVATE_FFI_REPO
 #   - Rust toolchain with all Apple targets
 
@@ -86,15 +86,15 @@ if ! gh api "repos/$PRIVATE_FFI_REPO/commits?per_page=1" >/dev/null 2>&1; then
 fi
 
 # --- Switch to FULL mode, restoring whatever mode was active on exit ---
-PRIOR_MODE=$(./Scripts/slipstream-ffi-mode.sh status)
+PRIOR_MODE=$(./Scripts/private-ffi-mode.sh status)
 restore_ffi_mode() {
     local exit_code=$?
     echo ""
     echo "Restoring prior slipstream-ffi mode (${PRIOR_MODE})..."
     if [[ "$PRIOR_MODE" == "FULL" ]]; then
-        ./Scripts/slipstream-ffi-mode.sh enable || echo "Warning: failed to restore FULL mode." >&2
+        ./Scripts/private-ffi-mode.sh enable || echo "Warning: failed to restore FULL mode." >&2
     else
-        ./Scripts/slipstream-ffi-mode.sh disable || echo "Warning: failed to restore STUB mode." >&2
+        ./Scripts/private-ffi-mode.sh disable || echo "Warning: failed to restore STUB mode." >&2
     fi
     exit $exit_code
 }
@@ -102,7 +102,7 @@ trap restore_ffi_mode EXIT
 
 echo ""
 echo "=== Switching to FULL mode ==="
-./Scripts/slipstream-ffi-mode.sh enable
+./Scripts/private-ffi-mode.sh enable
 
 echo ""
 echo "=== Ensuring Rust targets are installed ==="

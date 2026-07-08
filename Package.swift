@@ -26,7 +26,7 @@ if useLocalFFI {
     sdkDependencies.append(.product(name: "libzcashlc", package: "libzcashlc"))
 } else {
     // Binary target for the Rust FFI library
-    // Updated by Scripts/release.sh during the release process
+    // Updated by Scripts/release-public.sh during the release process
     targets.append(
         .binaryTarget(
             name: "libzcashlc",

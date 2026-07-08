@@ -1,7 +1,7 @@
 #!/bin/bash
 # Switch the root Cargo manifest/lock between the public STUB default and the private-access
 # FULL overlay.
-# Usage: ./Scripts/slipstream-ffi-mode.sh {enable|disable|status}
+# Usage: ./Scripts/private-ffi-mode.sh {enable|disable|status}
 #
 # STUB (default, committed state): Cargo.toml/Cargo.lock have zero references to the
 # private https://github.com/LukasKorba/slipstream repository. `slipstream_ffi_stubs.rs`
@@ -39,7 +39,7 @@ usage() {
         echo "" >&2
     fi
     cat >&2 << 'USAGEEOF'
-Usage: ./Scripts/slipstream-ffi-mode.sh {enable|disable|status}
+Usage: ./Scripts/private-ffi-mode.sh {enable|disable|status}
 
   enable   Verify private-repo git access, then switch Cargo.toml/Cargo.lock to FULL
            (Cargo-slipstream.toml / Cargo-slipstream.lock).
@@ -69,7 +69,7 @@ cmd_enable() {
     cp "$OVERLAY_TOML" Cargo.toml
     cp "$OVERLAY_LOCK" Cargo.lock
     echo "Switched to FULL mode (Cargo.toml/Cargo.lock now reference the private engine repo)."
-    echo "Run './Scripts/slipstream-ffi-mode.sh disable' before committing to return to STUB."
+    echo "Run './Scripts/private-ffi-mode.sh disable' before committing to return to STUB."
 }
 
 cmd_disable() {

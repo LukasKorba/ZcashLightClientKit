@@ -1,5 +1,5 @@
 # Shared config for the private FFI distribution scripts.
-# Sourced by: release-private-ffi.sh, publish-private-sdk-tag.sh, init-local-ffi.sh (--cached-full).
+# Sourced by: release-private-ffi.sh, publish-private-sdk-tag.sh, init-local-ffi.sh (--cached-private).
 # Not meant to be executed directly -- it has no shebang and is not chmod +x.
 #
 # This file must NOT set shell options (set -e/-u/pipefail) itself: sourcing it must
@@ -8,7 +8,7 @@
 #
 # PRIVATE_FFI_REPO is the private GitHub repo that hosts prebuilt FULL-flavor
 # libzcashlc.xcframework.zip releases (the "private-ffi asset repo" -- distinct from
-# the private slipstream ENGINE source repo that slipstream-ffi-mode.sh talks to).
+# the private slipstream ENGINE source repo that private-ffi-mode.sh talks to).
 # LukasKorba/zcash-sdk-private-ffi is a PLACEHOLDER: it does not exist yet. This is the
 # only place the name is hardcoded, and it's env-overridable so the P5 gates (and any
 # future rename) never need to touch the scripts themselves.

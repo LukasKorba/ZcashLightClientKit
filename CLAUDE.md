@@ -42,8 +42,8 @@ See `docs/LOCAL_DEVELOPMENT.md` for the full reference.
 
 ## Release
 
-- `./Scripts/release.sh <remote> <version>` — fully automated release (bumps the XCFramework URL+checksum in `Package.swift`, signs a tag, drafts GitHub Release).
-- `./Scripts/prepare-release.sh <version>` — semi-automated alternative.
+- `./Scripts/release-public.sh <remote> <version>` — fully automated release (bumps the XCFramework URL+checksum in `Package.swift`, signs a tag, drafts GitHub Release).
+- `./Scripts/prepare-public-release.sh <version>` — semi-automated alternative.
 - The `Build FFI XCFramework` GitHub Action (`workflow_dispatch`) produces release artifacts.
 
 ## Architecture

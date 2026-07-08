@@ -1,6 +1,6 @@
 #!/bin/bash
 # Prepare FFI artifacts for an SDK release
-# Usage: ./Scripts/prepare-release.sh [--force-overwrite-existing-release] <version>
+# Usage: ./Scripts/prepare-public-release.sh [--force-overwrite-existing-release] <version>
 #
 # This is the CANONICAL build+upload path for releases. It:
 #   1. Builds the full xcframework (all architectures)
@@ -15,7 +15,7 @@
 #   3. Create a signed tag for the SDK release
 #   4. Publish the draft release on GitHub
 #
-# Or use ./Scripts/release.sh to automate all of the above.
+# Or use ./Scripts/release-public.sh to automate all of the above.
 #
 # Options:
 #   --force-overwrite-existing-release  Allow overwriting an existing release
@@ -84,7 +84,7 @@ cd ../..
 
 DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${VERSION}/${ZIP_FILE}"
 
-# Write release info for consumption by other scripts (release.sh, CI)
+# Write release info for consumption by other scripts (release-public.sh, CI)
 cat > "$PRODUCTS_DIR/release.env" << EOF
 CHECKSUM=${CHECKSUM}
 DOWNLOAD_URL=${DOWNLOAD_URL}
