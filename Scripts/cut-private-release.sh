@@ -130,7 +130,6 @@ gh release download "$VERSION" \
     --dir "$DOWNLOAD_DIR"
 
 CHECKSUM=$(shasum -a 256 "$DOWNLOAD_DIR/$ZIP_FILE" | awk '{print $1}')
-rm -rf "$DOWNLOAD_DIR"
 echo "Computed checksum: ${CHECKSUM}"
 
 ASSET_ID=$(gh api "repos/$PRIVATE_FFI_REPO/releases/tags/$VERSION" --jq '.assets[] | select(.name=="'"$ZIP_FILE"'") | .id')
