@@ -78,8 +78,10 @@ tracing-subscriber = "0.3"
 
 # Slipstream engine — the opt-in high-performance sync engine. The engine lives in its
 # own repository (https://github.com/LukasKorba/slipstream); the SDK references a tagged
-# release rather than carrying the code.
-slipstream-core = { git = "https://github.com/LukasKorba/slipstream", tag = "v0.5.1" }
+# release rather than carrying the code. Optional: gated behind the `slipstream` feature
+# (see [features] below) so a build can omit it entirely — `rust/src/slipstream_ffi_stubs.rs`
+# stands in for `rust/src/slipstream_ffi.rs` and the private repository is never fetched.
+slipstream-core = { git = "https://github.com/LukasKorba/slipstream", tag = "v0.5.1", optional = true }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
 
 # Tor
@@ -114,9 +116,19 @@ crate-type = ["staticlib"]
 lto = true
 
 [features]
+default = ["slipstream"]
+
+# Compiles `rust/src/slipstream_ffi.rs` (the real `zcashlc_slipstream_*` FFI surface)
+# against the `slipstream-core` engine crate. Off (`--no-default-features`) compiles
+# `rust/src/slipstream_ffi_stubs.rs` instead — same exported symbols and cbindgen
+# header (Gate 1a/1b), every entry point reports "engine not available" — so the crate
+# builds without access to the private slipstream-core repository.
+slipstream = ["dep:slipstream-core"]
+
 # GPU Orchard subtree offload (experimental, default OFF — the released libzcashlc links
-# zero wgpu). Forwards to slipstream-core's `gpu` feature.
-gpu = ["slipstream-core/gpu"]
+# zero wgpu). Forwards to slipstream-core's `gpu` feature; implies `slipstream` because
+# `slipstream-core` is only in the dependency graph once that feature pulls it in.
+gpu = ["slipstream", "slipstream-core/gpu"]
 
 # The slipstream engine's trial-decrypt fast path relies on two minimally-patched forks
 # pinned inside the engine repository (orchard: GLV endomorphism DH + a batch-agreement
