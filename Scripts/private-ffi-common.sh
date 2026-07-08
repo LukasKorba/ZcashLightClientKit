@@ -14,6 +14,13 @@
 # future rename) never need to touch the scripts themselves.
 PRIVATE_FFI_REPO="${PRIVATE_FFI_REPO:-LukasKorba/zcash-sdk-private-ffi}"
 
+# PRIVATE_FFI_GIT_URL is where cut-private-release.sh pushes the SPM-consumable
+# <version> tag. It defaults to the ssh form of PRIVATE_FFI_REPO -- git push needs a
+# URL, not an "owner/repo" pair, and ssh matches how a maintainer's `gh`/git is already
+# authenticated. Override independently of PRIVATE_FFI_REPO when a gate (or a future
+# HTTPS-remote setup) needs a different push URL than the gh-api owner/repo pair.
+PRIVATE_FFI_GIT_URL="${PRIVATE_FFI_GIT_URL:-git@github.com:${PRIVATE_FFI_REPO}.git}"
+
 # require_private_ffi_access
 #
 # Verifies the authenticated `gh` account can see $PRIVATE_FFI_REPO, and exits with a
