@@ -272,7 +272,7 @@ elif [[ "$BUILD_MODE" == "cached-full" ]]; then
     fi
 
     # The asset lives on the release tag "ffi-<version>", not "<version>" itself (that
-    # plain tag is the separate SPM-consumable one cut-private-release.sh creates).
+    # plain tag is the separate SPM-consumable one publish-private-sdk-tag.sh creates).
     # Honor the RELEASE_TAG recorded in private-release.env when it matches the
     # requested version, in case the "ffi-" prefix convention ever changes; otherwise
     # derive it.
