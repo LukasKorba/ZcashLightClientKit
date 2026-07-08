@@ -1,6 +1,6 @@
 // ── Slipstream FFI surface ────────────────────────────────────────────────────
 //
-// These functions are ADDITIVE — they do not modify any existing item above.
+// These functions are ADDITIVE — they do not modify any pre-existing FFI item.
 // Pattern mirrors `zcashlc_create_tor_runtime` / `zcashlc_free_tor_runtime`
 // (lib.rs:3157-3195): Box::into_raw / Box::from_raw, catch_panic, unwrap_exc_or_null.
 // D7 deviation: the tokio runtime is created at `open` and lives for the full
@@ -8,7 +8,8 @@
 // TorRuntime precedent where the runtime is owned by the handle.
 //
 // cbindgen note (C4/C12): cbindgen only parses the root crate. `FfiSlipstreamSnapshot`
-// and `FfiSlipstreamEvent` are therefore defined directly here so they appear in the
+// and `FfiSlipstreamEvent` are therefore defined in this crate — in
+// `slipstream_ffi_types.rs`, ungated, shared by both flavors — so they appear in the
 // generated `zcashlc.h`.
 //
 // `SlipstreamHandle` MUST also be defined here (not imported from the dep crate) so
