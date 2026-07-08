@@ -535,6 +535,12 @@ enum ZcashErrorDefinition {
     // sourcery: code="ZRUST0097"
     case rustSlipstreamUnsupported
 
+    // MARK: - Slipstream
+
+    /// This build of the SDK does not include the Slipstream engine. The classic sync path is unaffected.
+    // sourcery: code="ZSLST0001"
+    case slipstreamEngineUnavailable
+
     // MARK: - Account DAO
 
     /// SQLite query failed when fetching all accounts from the database.
